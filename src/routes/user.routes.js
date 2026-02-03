@@ -1,34 +1,42 @@
 import express from "express";
 import { UserController } from "../controllers/user.controller.js";
-import { verifyToken, verifyAdmin, verifyAdminOrReadOnly } from "../middlewares/jwt.middleware.js";
+import { verifyToken, verifyAdmin } from "../middlewares/jwt.middleware.js";
+import { autoVerifyRole } from "../middlewares/role.middleware.js"; // DESCOMENTA ESTA LÍNEA
 
 const router = express.Router();
 
-// Authentication routes (no auth required) - PRIMERO
+// ============================================
+// RUTAS PÚBLICAS (sin autenticación)
+// ============================================
 router.post("/register", UserController.register);
 router.post("/login", UserController.login);
 router.post("/refresh-token", UserController.refreshToken);
 router.post("/forgot-password", UserController.forgotPassword);
 router.post("/reset-password", UserController.resetPassword);
 router.post("/recover-password-security", UserController.recoverPasswordWithSecurity);
-router.post("/migrate-passwords", verifyToken, verifyAdmin, UserController.migrateAllPasswords); // <-- NUEVA RUTA
-
-// Routes with specific paths - ANTES de las rutas con parámetros
-router.get("/list", verifyToken, verifyAdmin, UserController.listUsers);
-router.get("/search", verifyToken, verifyAdminOrReadOnly, UserController.searchUsers);
-router.get("/profile", verifyToken, UserController.profile);
-router.put("/profile", verifyToken, UserController.updateProfile);
-router.put("/profile/security", verifyToken, UserController.updateProfileWithSecurity);
-router.put("/change-password", verifyToken, UserController.changePassword);
-router.put("/change-password/security", UserController.changePasswordWithSecurity);
-
-// Routes that require authentication
-router.post("/logout", verifyToken, UserController.logout);
-
-// Routes with parameters - AL FINAL
 router.get("/security-question/:username", UserController.getSecurityQuestion);
-router.put("/activate/:id", verifyToken, verifyAdmin, UserController.activateUser);
-router.put("/deactivate/:id", verifyToken, verifyAdmin, UserController.deactivateUser);
-router.delete("/:id", verifyToken, verifyAdmin, UserController.deleteUser);
+
+// ============================================
+// RUTAS PROTEGIDAS CON AUTENTICACIÓN + AUTORIZACIÓN
+// ============================================
+// Migración de passwords (solo admin - doble protección)
+router.post("/migrate-passwords", verifyToken, verifyAdmin, autoVerifyRole, UserController.migrateAllPasswords);
+
+// Rutas que requieren autenticación + verificación automática de roles
+router.get("/list", verifyToken, autoVerifyRole, UserController.listUsers);
+router.get("/search", verifyToken, autoVerifyRole, UserController.searchUsers);
+router.get("/profile", verifyToken, autoVerifyRole, UserController.profile);
+router.put("/profile", verifyToken, autoVerifyRole, UserController.updateProfile);
+router.put("/profile/security", verifyToken, autoVerifyRole, UserController.updateProfileWithSecurity);
+router.put("/change-password", verifyToken, autoVerifyRole, UserController.changePassword);
+router.put("/change-password/security", verifyToken, autoVerifyRole, UserController.changePasswordWithSecurity);
+
+// Logout (requiere token válido)
+router.post("/logout", verifyToken, autoVerifyRole, UserController.logout);
+
+// Rutas administrativas (solo admin - doble protección)
+router.put("/activate/:id", verifyToken, verifyAdmin, autoVerifyRole, UserController.activateUser);
+router.put("/deactivate/:id", verifyToken, verifyAdmin, autoVerifyRole, UserController.deactivateUser);
+router.delete("/:id", verifyToken, verifyAdmin, autoVerifyRole, UserController.deleteUser);
 
 export default router;
