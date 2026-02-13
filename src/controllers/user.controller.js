@@ -157,6 +157,8 @@ const login = async (req, res) => {
         tipo_rol: user.tipo_rol,
         es_profesor: !!profesorInfo,
         es_representante: !!representanteInfo,
+        profesorId: profesorInfo?.Id_profesor || null,
+        representanteId: representanteInfo?.Id_representante || null
       },
       JWT_SECRET,
       { expiresIn: "24h" }
@@ -339,6 +341,8 @@ const refreshToken = async (req, res) => {
           tipo_rol: user.tipo_rol,
           es_profesor: !!profesorInfo,
           es_representante: !!representanteInfo,
+          profesorId: profesorInfo?.Id_profesor || null,
+          representanteId: representanteInfo?.Id_representante || null
         },
         JWT_SECRET,
         { expiresIn: "24h" }
@@ -477,23 +481,386 @@ const profile = async (req, res) => {
   }
 };
 
+// ============================================
+// 🆕 LIST USERS - MEJORADO (mapeo de roles)
+// ============================================
 const listUsers = async (req, res) => {
   try {
     const users = await UserModel.findAll();
+    
+    // Mapear al formato del frontend
+    const mappedUsers = users.map(user => {
+      const roleMap = {
+        1: 'admin',
+        2: 'docente',
+        3: 'estudiante',
+        4: 'representante'
+      };
+      
+      return {
+        id: user.id,
+        dni: user.cedula,
+        first_name: user.nombre,
+        last_name: user.apellido,
+        email: user.correo,
+        phone: user.telefono || '',
+        role: roleMap[user.Id_rol] || 'estudiante',
+        status: user.is_active === 'activo' ? 'active' : 'inactive',
+        createdAt: user.created_at
+      };
+    });
+
     return res.json({
       ok: true,
-      users,
-      total: users.length,
+      users: mappedUsers,
+      total: mappedUsers.length,
     });
   } catch (error) {
-    console.error("Error in listUsers:", error);
+    console.error("❌ Error in listUsers:", error);
     return res.status(500).json({
       ok: false,
-      msg: "Server error",
+      msg: "Error al listar usuarios",
       error: error.message,
     });
   }
 };
+
+// ============================================
+// 🆕 CREAR USUARIO POR ADMINISTRADOR
+// ============================================
+const createUser = async (req, res) => {
+  try {
+    const { 
+      dni, first_name, last_name, password, phone, email, 
+      role, status, fecha_nacimiento, genero, Id_direccion 
+    } = req.body;
+
+    console.log("👑 ADMIN CREATE - Creando usuario por admin:", { 
+      email, 
+      role, 
+      dni,
+      creador: req.user.userId 
+    });
+
+    // Validaciones básicas
+    if (!dni || !first_name || !last_name || !email || !password || !role) {
+      return res.status(400).json({
+        ok: false,
+        msg: "Faltan campos obligatorios: cédula, nombre, apellido, email, contraseña y rol"
+      });
+    }
+
+    if (password.length < 4) {
+      return res.status(400).json({
+        ok: false,
+        msg: "La contraseña debe tener al menos 4 caracteres"
+      });
+    }
+
+    // Mapeo de roles (frontend → BD)
+    const roleMap = {
+      'admin': 1,
+      'docente': 2,
+      'superadmin': 1,
+      'estudiante': 3,
+      'representante': 4
+    };
+
+    const Id_rol = roleMap[role];
+    if (!Id_rol) {
+      return res.status(400).json({
+        ok: false,
+        msg: `Rol inválido: ${role}`
+      });
+    }
+
+    // Verificar duplicados
+    const existingUserByCedula = await UserModel.findByCedula(dni);
+    if (existingUserByCedula) {
+      return res.status(400).json({
+        ok: false,
+        msg: "La cédula ya está registrada"
+      });
+    }
+
+    const existingUserByEmail = await UserModel.findOneByEmail(email);
+    if (existingUserByEmail) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El email ya está registrado"
+      });
+    }
+
+    // Generar username a partir del email
+    const username = email.split('@')[0];
+
+    // Crear el usuario
+    const newUser = await UserModel.create({
+      username,
+      email,
+      password,
+      Id_rol,
+      nombre: first_name,
+      apellido: last_name,
+      cedula: dni,
+      telefono: phone || null,
+      fecha_nacimiento: fecha_nacimiento || null,
+      genero: genero || null,
+      Id_direccion: Id_direccion || null,
+      security_word: 'predeterminada',
+      respuesta_de_seguridad: 'predeterminada'
+    });
+
+    // 🔥 Si es DOCENTE, crear automáticamente en tabla Profesor
+    if (role === 'docente' && newUser.id) {
+      try {
+        await UserModel.createProfesor(newUser.id);
+        console.log(`✅ Profesor creado automáticamente para usuario ${newUser.id}`);
+      } catch (profError) {
+        console.error(`❌ Error creando profesor:`, profError.message);
+        // No fallamos la operación principal
+      }
+    }
+
+    // Preparar respuesta en formato frontend
+    const userResponse = {
+      id: newUser.id,
+      dni: newUser.cedula,
+      first_name: newUser.nombre,
+      last_name: newUser.apellido,
+      email: newUser.email,
+      phone: newUser.telefono || '',
+      role: role,
+      status: newUser.is_active === 'activo' ? 'active' : 'inactive',
+      createdAt: newUser.created_at
+    };
+
+    return res.status(201).json({
+      ok: true,
+      msg: `Usuario ${role} creado exitosamente`,
+      user: userResponse
+    });
+
+  } catch (error) {
+    console.error("❌ ADMIN CREATE - Error:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al crear usuario",
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// 🆕 ACTUALIZAR USUARIO POR ADMIN
+// ============================================
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      dni, first_name, last_name, phone, email, 
+      role, status, password 
+    } = req.body;
+
+    console.log(`👑 ADMIN UPDATE - Actualizando usuario ${id}`);
+
+    // Verificar que el usuario existe
+    const existingUser = await UserModel.findOneById(id);
+    if (!existingUser) {
+      return res.status(404).json({
+        ok: false,
+        msg: "Usuario no encontrado"
+      });
+    }
+
+    // No permitir modificar superadmin si no eres superadmin
+    if (existingUser.Id_rol === 1 && req.user.Id_rol !== 1) {
+      return res.status(403).json({
+        ok: false,
+        msg: "No puedes modificar administradores"
+      });
+    }
+
+    // Mapear rol
+    const roleMap = {
+      'admin': 1,
+      'docente': 2,
+      'superadmin': 1
+    };
+    const Id_rol = roleMap[role] || existingUser.Id_rol;
+
+    // Verificar duplicados (si cambiaron)
+    if (dni && dni !== existingUser.cedula) {
+      const existingByCedula = await UserModel.findByCedula(dni);
+      if (existingByCedula && existingByCedula.id !== parseInt(id)) {
+        return res.status(400).json({
+          ok: false,
+          msg: "La cédula ya está registrada por otro usuario"
+        });
+      }
+    }
+
+    if (email && email !== existingUser.email) {
+      const existingByEmail = await UserModel.findOneByEmail(email);
+      if (existingByEmail && existingByEmail.id !== parseInt(id)) {
+        return res.status(400).json({
+          ok: false,
+          msg: "El email ya está registrado por otro usuario"
+        });
+      }
+    }
+
+    // Mapear estado
+    let dbStatus = existingUser.is_active;
+    if (status === 'active') dbStatus = 'activo';
+    else if (status === 'inactive') dbStatus = 'inactivo';
+    else if (status === 'suspended') dbStatus = 'suspendido';
+
+    // Actualizar usuario
+    const updatedUser = await UserModel.updateUserByAdmin(id, {
+      cedula: dni,
+      nombre: first_name,
+      apellido: last_name,
+      telefono: phone,
+      email,
+      Id_rol,
+      status: dbStatus,
+      password: password || null
+    });
+
+    // Si cambió a DOCENTE y no era docente, crear registro
+    if (role === 'docente') {
+      const isProf = await UserModel.isProfesor(id);
+      if (!isProf) {
+        await UserModel.createProfesor(id);
+        console.log(`✅ Registro de profesor creado para usuario ${id}`);
+      }
+    }
+
+    return res.json({
+      ok: true,
+      msg: "Usuario actualizado correctamente",
+      user: {
+        ...updatedUser,
+        role: role,
+        status: status
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ ADMIN UPDATE - Error:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al actualizar usuario",
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// 🆕 ACTUALIZAR SOLO EL ROL DEL USUARIO
+// ============================================
+const updateUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    const roleMap = {
+      'admin': 1,
+      'docente': 2,
+      'superadmin': 1
+    };
+
+    const Id_rol = roleMap[role];
+    if (!Id_rol) {
+      return res.status(400).json({
+        ok: false,
+        msg: "Rol inválido"
+      });
+    }
+
+    const updatedUser = await UserModel.updateUserRole(id, Id_rol);
+
+    // Si el nuevo rol es docente, asegurar que tenga registro en Profesor
+    if (role === 'docente') {
+      const isProf = await UserModel.isProfesor(id);
+      if (!isProf) {
+        await UserModel.createProfesor(id);
+        console.log(`✅ Registro de profesor creado para usuario ${id} (cambio de rol)`);
+      }
+    }
+
+    return res.json({
+      ok: true,
+      msg: `Rol actualizado a ${role}`,
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error("❌ ADMIN ROLE UPDATE - Error:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al actualizar rol",
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// 🆕 DELETE USER - MEJORADO
+// ============================================
+// ============================================
+// 🆕 DELETE USER - VERSIÓN MEJORADA
+// ============================================
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await UserModel.findOneById(id);
+    if (!user) {
+      return res.status(404).json({
+        ok: false,
+        msg: "Usuario no encontrado",
+      });
+    }
+
+    // No permitir eliminar superadmin
+    if (user.Id_rol === 1) {
+      return res.status(403).json({
+        ok: false,
+        msg: "No puedes eliminar un administrador",
+      });
+    }
+
+    let result;
+    
+    // Si es DOCENTE (Id_rol = 2), usar función especializada
+    if (user.Id_rol === 2) {
+      console.log(`👨‍🏫 Eliminando docente ${id} con todas sus relaciones...`);
+      result = await UserModel.removeProfesorCompleto(id);
+    } else {
+      // Para otros roles, usar eliminación estándar
+      console.log(`👤 Eliminando usuario ${id} (rol: ${user.Id_rol})...`);
+      result = await UserModel.remove(id);
+    }
+
+    return res.json({
+      ok: true,
+      msg: "Usuario eliminado exitosamente",
+      id: result.id,
+    });
+  } catch (error) {
+    console.error("❌ Error in deleteUser:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al eliminar usuario",
+      error: error.message,
+    });
+  }
+};
+
+
+
 
 const updateProfile = async (req, res) => {
   try {
@@ -854,7 +1221,7 @@ const activateUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         ok: false,
-        msg: "User not found",
+        msg: "Usuario no encontrado",
       });
     }
 
@@ -862,14 +1229,14 @@ const activateUser = async (req, res) => {
 
     return res.json({
       ok: true,
-      msg: "User activated successfully",
+      msg: "Usuario activado exitosamente",
       user: updatedUser,
     });
   } catch (error) {
     console.error("Error in activateUser:", error);
     return res.status(500).json({
       ok: false,
-      msg: "Server error",
+      msg: "Error al activar usuario",
       error: error.message,
     });
   }
@@ -883,7 +1250,7 @@ const deactivateUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         ok: false,
-        msg: "User not found",
+        msg: "Usuario no encontrado",
       });
     }
 
@@ -891,43 +1258,14 @@ const deactivateUser = async (req, res) => {
 
     return res.json({
       ok: true,
-      msg: "User deactivated successfully",
+      msg: "Usuario desactivado exitosamente",
       user: updatedUser,
     });
   } catch (error) {
     console.error("Error in deactivateUser:", error);
     return res.status(500).json({
       ok: false,
-      msg: "Server error",
-      error: error.message,
-    });
-  }
-};
-
-const deleteUser = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const user = await UserModel.findOneById(id);
-    if (!user) {
-      return res.status(404).json({
-        ok: false,
-        msg: "User not found",
-      });
-    }
-
-    const result = await UserModel.remove(id);
-
-    return res.json({
-      ok: true,
-      msg: "User deleted successfully",
-      id: result.id,
-    });
-  } catch (error) {
-    console.error("Error in deleteUser:", error);
-    return res.status(500).json({
-      ok: false,
-      msg: "Server error",
+      msg: "Error al desactivar usuario",
       error: error.message,
     });
   }
@@ -944,10 +1282,33 @@ const searchUsers = async (req, res) => {
     }
 
     const users = await UserModel.searchByUsername(search);
+    
+    // Mapear al formato del frontend
+    const mappedUsers = users.map(user => {
+      const roleMap = {
+        1: 'admin',
+        2: 'docente',
+        3: 'estudiante',
+        4: 'representante'
+      };
+      
+      return {
+        id: user.id,
+        dni: user.cedula,
+        first_name: user.nombre,
+        last_name: user.apellido,
+        email: user.correo,
+        phone: user.telefono || '',
+        role: roleMap[user.Id_rol] || 'estudiante',
+        status: user.is_active === 'activo' ? 'active' : 'inactive',
+        createdAt: user.created_at
+      };
+    });
+
     return res.json({
       ok: true,
-      users,
-      total: users.length,
+      users: mappedUsers,
+      total: mappedUsers.length,
     });
   } catch (error) {
     console.error("Error in searchUsers:", error);
@@ -1152,6 +1513,16 @@ const register = async (req, res) => {
       Id_direccion
     });
 
+    // Si es docente, crear automáticamente el registro en Profesor
+    if (Id_rol === 2 && newUser.id) {
+      try {
+        await UserModel.createProfesor(newUser.id);
+        console.log(`✅ Profesor creado automáticamente para usuario ${newUser.id} (registro)`);
+      } catch (profError) {
+        console.error(`❌ Error creando profesor:`, profError.message);
+      }
+    }
+
     if (!newUser) {
       return res.status(500).json({
         ok: false,
@@ -1187,6 +1558,9 @@ const register = async (req, res) => {
   }
 };
 
+// ============================================
+// EXPORTAR TODOS LOS MÉTODOS DEL CONTROLADOR
+// ============================================
 export const UserController = {
   register,
   login,
@@ -1194,6 +1568,10 @@ export const UserController = {
   logout,
   profile,
   listUsers,
+  createUser,
+  updateUser,
+  updateUserRole,
+  deleteUser,
   updateProfile,
   updateProfileWithSecurity,
   changePassword,
@@ -1202,7 +1580,6 @@ export const UserController = {
   resetPassword,
   activateUser,
   deactivateUser,
-  deleteUser,
   searchUsers,
   verifyEmail,
   recoverPasswordWithSecurity,

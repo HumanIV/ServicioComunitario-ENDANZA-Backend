@@ -38,19 +38,18 @@ const migrateAllPasswords = async () => {
   try {
     console.log("🚀 MIGRATE ALL - Iniciando migración de todos los passwords...");
     
-    // Obtener todos los usuarios con passwords en texto plano
     const query = {
       text: `
         SELECT "Id_usuario", "clave", "username", "correo" 
         FROM "Usuario" 
         WHERE "clave" IS NOT NULL 
         AND "clave" != '' 
-        AND "clave" NOT LIKE '$2%'
+        AND "clave" NOT LIKE '$2a$%'
+        AND "clave" NOT LIKE '$2b$%'
       `
     };
     
     const { rows } = await db.query(query.text);
-    
     console.log(`📊 MIGRATE ALL - Encontrados ${rows.length} usuarios para migrar`);
     
     let migrated = 0;
@@ -84,7 +83,6 @@ const migrateAllPasswords = async () => {
         });
         
         console.log(`✅ Migrado usuario ${user.Id_usuario}`);
-        
       } catch (error) {
         errors++;
         results.push({
@@ -105,13 +103,322 @@ const migrateAllPasswords = async () => {
       total: rows.length,
       results
     };
-    
   } catch (error) {
     console.error("❌ MIGRATE ALL - Error general:", error);
     throw error;
   }
 };
 
+// ============================================
+// CREAR PROFESOR AUTOMÁTICAMENTE - ¡CORREGIDO!
+// ============================================
+const createProfesor = async (usuarioId) => {
+  try {
+    console.log(`👨‍🏫 Creando registro de profesor para usuario ${usuarioId}`);
+    
+    // 1. Verificar si el usuario existe y es docente
+    const userCheck = await db.query(
+      'SELECT "Id_rol" FROM "Usuario" WHERE "Id_usuario" = $1',
+      [usuarioId]
+    );
+    
+    if (userCheck.rows.length === 0) {
+      throw new Error(`Usuario ${usuarioId} no existe`);
+    }
+    
+    if (userCheck.rows[0].Id_rol !== 2) {
+      throw new Error(`Usuario ${usuarioId} no es docente (rol: ${userCheck.rows[0].Id_rol})`);
+    }
+    
+    // 2. Verificar si ya existe en Profesor
+    const checkQuery = {
+      text: `SELECT "Id_profesor" FROM "Profesor" WHERE "Id_usuario" = $1`,
+      values: [usuarioId]
+    };
+    
+    const checkResult = await db.query(checkQuery.text, checkQuery.values);
+    
+    if (checkResult.rows.length > 0) {
+      console.log(`ℹ️ El usuario ${usuarioId} ya es profesor (ID: ${checkResult.rows[0].Id_profesor})`);
+      return checkResult.rows[0];
+    }
+    
+    // 3. Crear el registro en Profesor
+    const insertQuery = {
+      text: `
+        INSERT INTO "Profesor" ("Id_usuario", "especialidad")
+        VALUES ($1, NULL)
+        RETURNING "Id_profesor" as id, "Id_usuario" as usuario_id
+      `,
+      values: [usuarioId]
+    };
+    
+    const { rows } = await db.query(insertQuery.text, insertQuery.values);
+    console.log(`✅ Profesor creado exitosamente con ID: ${rows[0].id} para usuario ${usuarioId}`);
+    
+    return rows[0];
+  } catch (error) {
+    console.error("❌ Error en createProfesor:", error);
+    throw error;
+  }
+};
+
+
+
+
+// ============================================
+// ACTUALIZAR USUARIO POR ADMIN
+// ============================================
+const updateUserByAdmin = async (id, { 
+  cedula, nombre, apellido, telefono, email, Id_rol, status, password 
+}) => {
+  try {
+    let hashedPassword = null;
+    if (password) {
+      const salt = await bcryptjs.genSalt(10);
+      hashedPassword = await bcryptjs.hash(password, salt);
+    }
+
+    const query = {
+      text: `
+        UPDATE "Usuario"
+        SET 
+          "cedula" = COALESCE($1, "cedula"),
+          "nombre" = COALESCE($2, "nombre"),
+          "apellido" = COALESCE($3, "apellido"),
+          "telefono" = COALESCE($4, "telefono"),
+          "correo" = COALESCE($5, "correo"),
+          "Id_rol" = COALESCE($6, "Id_rol"),
+          "estatus_usuario" = COALESCE($7, "estatus_usuario"),
+          "clave" = COALESCE($8, "clave"),
+          "actualizado_en" = CURRENT_TIMESTAMP
+        WHERE "Id_usuario" = $9
+        RETURNING 
+          "Id_usuario" as id, 
+          "cedula" as dni,
+          "nombre" as first_name,
+          "apellido" as last_name,
+          "telefono" as phone,
+          "correo" as email,
+          "estatus_usuario" as status,
+          "Id_rol"
+      `,
+      values: [cedula, nombre, apellido, telefono, email, Id_rol, status, hashedPassword, id]
+    };
+
+    const { rows } = await db.query(query.text, query.values);
+    return rows[0];
+  } catch (error) {
+    console.error("❌ Error en updateUserByAdmin:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// ACTUALIZAR ROL DE USUARIO
+// ============================================
+const updateUserRole = async (id, Id_rol) => {
+  try {
+    const query = {
+      text: `
+        UPDATE "Usuario"
+        SET "Id_rol" = $1,
+            "actualizado_en" = CURRENT_TIMESTAMP
+        WHERE "Id_usuario" = $2
+        RETURNING 
+          "Id_usuario" as id, 
+          "cedula" as dni,
+          "nombre" as first_name,
+          "apellido" as last_name,
+          "correo" as email,
+          "estatus_usuario" as status,
+          "Id_rol"
+      `,
+      values: [Id_rol, id]
+    };
+
+    const { rows } = await db.query(query.text, query.values);
+    return rows[0];
+  } catch (error) {
+    console.error("❌ Error en updateUserRole:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// ELIMINAR USUARIO DOCENTE - VERSIÓN ROBUSTA
+// ============================================
+const removeProfesorCompleto = async (usuarioId) => {
+  try {
+    console.log(`🔍 Eliminando docente y sus relaciones para usuario ${usuarioId}`);
+    
+    // 1. Verificar si existe en tabla Profesor - PROBAR MÚLTIPLES FORMATOS
+    let profesorId = null;
+    
+    // Probar con "Id_usuario"
+    try {
+      const profResult = await db.query(
+        'SELECT "Id_profesor" FROM "Profesor" WHERE "Id_usuario" = $1',
+        [usuarioId]
+      );
+      if (profResult.rows.length > 0) profesorId = profResult.rows[0].Id_profesor;
+    } catch (e) { /* ignorar */ }
+    
+    // Probar con "id_usuario" si no encontró
+    if (!profesorId) {
+      try {
+        const profResult = await db.query(
+          'SELECT "Id_profesor" FROM "Profesor" WHERE "id_usuario" = $1',
+          [usuarioId]
+        );
+        if (profResult.rows.length > 0) profesorId = profResult.rows[0].Id_profesor;
+      } catch (e) { /* ignorar */ }
+    }
+    
+    // Probar con "usuario_id"
+    if (!profesorId) {
+      try {
+        const profResult = await db.query(
+          'SELECT "Id_profesor" FROM "Profesor" WHERE "usuario_id" = $1',
+          [usuarioId]
+        );
+        if (profResult.rows.length > 0) profesorId = profResult.rows[0].Id_profesor;
+      } catch (e) { /* ignorar */ }
+    }
+    
+    // 2. Si encontramos profesor, eliminar sus relaciones
+    if (profesorId) {
+      console.log(`📌 Profesor ID: ${profesorId} encontrado`);
+      
+      // Eliminar relaciones - ESTAS SÍ SABEMOS QUE USAN "Id_profesor"
+      await db.query('DELETE FROM "Horario" WHERE "Id_profesor" = $1', [profesorId]);
+      await db.query('DELETE FROM "Profesor_Materia" WHERE "Id_profesor" = $1', [profesorId]);
+      
+      try { await db.query('DELETE FROM "Profesor_Curso" WHERE "Id_profesor" = $1', [profesorId]); } catch (e) {}
+      try { await db.query('DELETE FROM "Calificacion" WHERE "Id_profesor" = $1', [profesorId]); } catch (e) {}
+      try { await db.query('DELETE FROM "Asistencia" WHERE "Id_profesor" = $1', [profesorId]); } catch (e) {}
+      
+      // Eliminar el profesor
+      await db.query('DELETE FROM "Profesor" WHERE "Id_profesor" = $1', [profesorId]);
+    }
+    
+    // 3. Eliminar REPRESENTANTE - PROBAR TODOS LOS FORMATOS
+    try { await db.query('DELETE FROM "Representante" WHERE "Id_usuario" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Representante" WHERE "id_usuario" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Representante" WHERE "usuario_id" = $1', [usuarioId]); } catch (e) {}
+    
+    // 4. Eliminar ESTUDIANTE - PROBAR TODOS LOS FORMATOS
+    try { await db.query('DELETE FROM "Estudiante" WHERE "Id_usuario" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Estudiante" WHERE "id_usuario" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Estudiante" WHERE "usuario_id" = $1', [usuarioId]); } catch (e) {}
+    
+    // 5. Eliminar INCIDENCIAS - PROBAR TODOS LOS FORMATOS
+    try { await db.query('DELETE FROM "Incidencia" WHERE "Id_usuario_involucrado" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "id_usuario_involucrado" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "usuario_involucrado_id" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "Id_usuario_reporta" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "id_usuario_reporta" = $1', [usuarioId]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "usuario_reporta_id" = $1', [usuarioId]); } catch (e) {}
+    
+    // 6. Eliminar USUARIO - ESTE SÍ SABEMOS QUE FUNCIONA CON "Id_usuario"
+    const result = await db.query(
+      'DELETE FROM "Usuario" WHERE "Id_usuario" = $1 RETURNING "Id_usuario" as id',
+      [usuarioId]
+    );
+    
+    console.log(`✅ Usuario ${usuarioId} eliminado exitosamente`);
+    return result.rows[0];
+  } catch (error) {
+    console.error("❌ Error en removeProfesorCompleto:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// ELIMINAR USUARIO GENÉRICO - VERSIÓN ROBUSTA
+// ============================================
+const remove = async (id) => {
+  try {
+    console.log(`🔍 Eliminando usuario ${id}...`);
+    
+    // 1. Verificar si es docente - PROBAR MÚLTIPLES FORMATOS
+    let profesorId = null;
+    
+    try {
+      const profResult = await db.query(
+        'SELECT "Id_profesor" FROM "Profesor" WHERE "Id_usuario" = $1',
+        [id]
+      );
+      if (profResult.rows.length > 0) profesorId = profResult.rows[0].Id_profesor;
+    } catch (e) {}
+    
+    if (!profesorId) {
+      try {
+        const profResult = await db.query(
+          'SELECT "Id_profesor" FROM "Profesor" WHERE "id_usuario" = $1',
+          [id]
+        );
+        if (profResult.rows.length > 0) profesorId = profResult.rows[0].Id_profesor;
+      } catch (e) {}
+    }
+    
+    if (!profesorId) {
+      try {
+        const profResult = await db.query(
+          'SELECT "Id_profesor" FROM "Profesor" WHERE "usuario_id" = $1',
+          [id]
+        );
+        if (profResult.rows.length > 0) profesorId = profResult.rows[0].Id_profesor;
+      } catch (e) {}
+    }
+    
+    if (profesorId) {
+      // Eliminar relaciones del profesor
+      await db.query('DELETE FROM "Horario" WHERE "Id_profesor" = $1', [profesorId]);
+      await db.query('DELETE FROM "Profesor_Materia" WHERE "Id_profesor" = $1', [profesorId]);
+      
+      try { await db.query('DELETE FROM "Profesor_Curso" WHERE "Id_profesor" = $1', [profesorId]); } catch (e) {}
+      try { await db.query('DELETE FROM "Calificacion" WHERE "Id_profesor" = $1', [profesorId]); } catch (e) {}
+      try { await db.query('DELETE FROM "Asistencia" WHERE "Id_profesor" = $1', [profesorId]); } catch (e) {}
+      
+      // Eliminar el profesor
+      await db.query('DELETE FROM "Profesor" WHERE "Id_profesor" = $1', [profesorId]);
+    }
+    
+    // 2. Eliminar representante - PROBAR TODOS LOS FORMATOS
+    try { await db.query('DELETE FROM "Representante" WHERE "Id_usuario" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Representante" WHERE "id_usuario" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Representante" WHERE "usuario_id" = $1', [id]); } catch (e) {}
+    
+    // 3. Eliminar estudiante - PROBAR TODOS LOS FORMATOS
+    try { await db.query('DELETE FROM "Estudiante" WHERE "Id_usuario" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Estudiante" WHERE "id_usuario" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Estudiante" WHERE "usuario_id" = $1', [id]); } catch (e) {}
+    
+    // 4. Eliminar incidencias - PROBAR TODOS LOS FORMATOS
+    try { await db.query('DELETE FROM "Incidencia" WHERE "Id_usuario_involucrado" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "id_usuario_involucrado" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "usuario_involucrado_id" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "Id_usuario_reporta" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "id_usuario_reporta" = $1', [id]); } catch (e) {}
+    try { await db.query('DELETE FROM "Incidencia" WHERE "usuario_reporta_id" = $1', [id]); } catch (e) {}
+    
+    // 5. Eliminar usuario - ESTE SÍ FUNCIONA
+    const result = await db.query(
+      'DELETE FROM "Usuario" WHERE "Id_usuario" = $1 RETURNING "Id_usuario" as id',
+      [id]
+    );
+    
+    console.log(`✅ Usuario ${id} eliminado exitosamente`);
+    return result.rows[0];
+  } catch (error) {
+    console.error("❌ Error en remove:", error);
+    throw error;
+  }
+};
+// ============================================
+// CREATE - Crear nuevo usuario (FUNCIONA)
+// ============================================
 const create = async ({
   username,
   email,
@@ -139,13 +446,9 @@ const create = async ({
       cedula
     });
 
-    // Hash the password
     const salt = await bcryptjs.genSalt(10);
     const hashedPassword = await bcryptjs.hash(password, salt);
     
-    console.log("🔍 CREATE - Password hasheado. Longitud:", hashedPassword.length);
-    console.log("🔍 CREATE - Formato hash:", hashedPassword.substring(0, 10) + "...");
-
     const query = {
       text: `
         INSERT INTO "Usuario" (
@@ -177,37 +480,25 @@ const create = async ({
           "email_verified"
       `,
       values: [
-        cedula, 
-        nombre, 
-        apellido, 
-        hashedPassword,
-        telefono, 
-        email,
-        fecha_nacimiento, 
-        genero, 
-        foto_usuario, 
-        Id_rol, 
-        Id_direccion,
-        username || email, 
-        security_word, 
-        respuesta_de_seguridad
+        cedula, nombre, apellido, hashedPassword, telefono, email,
+        fecha_nacimiento, genero, foto_usuario, Id_rol, Id_direccion,
+        username || email, security_word, respuesta_de_seguridad
       ],
     };
     
-    console.log("🔍 CREATE - Ejecutando query con valores:", query.values.length, "parámetros");
-    
     const { rows } = await db.query(query.text, query.values);
-    
     console.log("✅ CREATE - Usuario creado exitosamente:", rows[0].id);
     
     return rows[0];
   } catch (error) {
     console.error("❌ CREATE - Error creando usuario:", error);
-    console.error("❌ CREATE - Detalle del error:", error.message);
     throw error;
   }
 };
 
+// ============================================
+// FIND ONE BY EMAIL
+// ============================================
 const findOneByEmail = async (email) => {
   try {
     const query = {
@@ -268,6 +559,9 @@ const findOneByEmail = async (email) => {
   }
 };
 
+// ============================================
+// FIND ONE BY USERNAME
+// ============================================
 const findOneByUsername = async (username) => {
   try {
     const query = {
@@ -328,6 +622,9 @@ const findOneByUsername = async (username) => {
   }
 };
 
+// ============================================
+// FIND ONE BY ID
+// ============================================
 const findOneById = async (id) => {
   try {
     const query = {
@@ -388,6 +685,9 @@ const findOneById = async (id) => {
   }
 };
 
+// ============================================
+// FIND ALL USERS
+// ============================================
 const findAll = async () => {
   try {
     const query = {
@@ -427,6 +727,9 @@ const findAll = async () => {
   }
 };
 
+// ============================================
+// UPDATE PASSWORD
+// ============================================
 const updatePassword = async (id, hashedPassword) => {
   try {
     const query = {
@@ -452,6 +755,9 @@ const updatePassword = async (id, hashedPassword) => {
   }
 };
 
+// ============================================
+// UPDATE PROFILE
+// ============================================
 const updateProfile = async (id, { 
   email, security_word, respuesta_de_seguridad, 
   nombre, apellido, telefono, cedula,
@@ -501,6 +807,9 @@ const updateProfile = async (id, {
   }
 };
 
+// ============================================
+// UPDATE LAST LOGIN
+// ============================================
 const updateLastLogin = async (id) => {
   try {
     const query = {
@@ -518,10 +827,12 @@ const updateLastLogin = async (id) => {
   }
 };
 
+// ============================================
+// SET PASSWORD RESET TOKEN
+// ============================================
 const setPasswordResetToken = async (userId, token) => {
   try {
-    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
-
+    const expires = new Date(Date.now() + 60 * 60 * 1000);
     const query = {
       text: `
         UPDATE "Usuario"
@@ -546,6 +857,9 @@ const setPasswordResetToken = async (userId, token) => {
   }
 };
 
+// ============================================
+// FIND BY PASSWORD RESET TOKEN
+// ============================================
 const findByPasswordResetToken = async (token) => {
   try {
     const query = {
@@ -564,6 +878,9 @@ const findByPasswordResetToken = async (token) => {
   }
 };
 
+// ============================================
+// CLEAR PASSWORD RESET TOKEN
+// ============================================
 const clearPasswordResetToken = async (id) => {
   try {
     const query = {
@@ -583,6 +900,9 @@ const clearPasswordResetToken = async (id) => {
   }
 };
 
+// ============================================
+// SET ACTIVE/INACTIVE
+// ============================================
 const setActive = async (id, isActive) => {
   try {
     const status = isActive ? 'activo' : 'inactivo';
@@ -610,20 +930,9 @@ const setActive = async (id, isActive) => {
   }
 };
 
-const remove = async (id) => {
-  try {
-    const query = {
-      text: 'DELETE FROM "Usuario" WHERE "Id_usuario" = $1 RETURNING "Id_usuario" as id',
-      values: [id],
-    };
-    const { rows } = await db.query(query.text, query.values);
-    return rows[0];
-  } catch (error) {
-    console.error("Error in remove user:", error);
-    throw error;
-  }
-};
-
+// ============================================
+// FIND BY CEDULA
+// ============================================
 const findByCedula = async (cedula) => {
   try {
     const query = {
@@ -667,6 +976,9 @@ const findByCedula = async (cedula) => {
   }
 };
 
+// ============================================
+// SEARCH BY USERNAME
+// ============================================
 const searchByUsername = async (searchTerm) => {
   try {
     const query = {
@@ -704,6 +1016,9 @@ const searchByUsername = async (searchTerm) => {
   }
 };
 
+// ============================================
+// VERIFY SECURITY ANSWER
+// ============================================
 const verifySecurityAnswer = async (username, respuesta_de_seguridad) => {
   try {
     const query = {
@@ -730,13 +1045,15 @@ const verifySecurityAnswer = async (username, respuesta_de_seguridad) => {
   }
 };
 
+// ============================================
+// UPDATE PROFILE WITH SECURITY
+// ============================================
 const updateProfileWithSecurity = async (
   id,
   { email, security_word, respuesta_de_seguridad, current_security_answer, 
     nombre, apellido, telefono, cedula, fecha_nacimiento, genero, foto_usuario, Id_direccion }
 ) => {
   try {
-    // Primero verificar la respuesta de seguridad actual
     const userQuery = {
       text: `SELECT "respuesta_de_seguridad" FROM "Usuario" WHERE "Id_usuario" = $1`,
       values: [id],
@@ -789,19 +1106,19 @@ const updateProfileWithSecurity = async (
   }
 };
 
+// ============================================
+// CHANGE PASSWORD WITH SECURITY
+// ============================================
 const changePasswordWithSecurity = async (username, respuesta_de_seguridad, newPassword) => {
   try {
-    // Verificar la respuesta de seguridad
     const user = await verifySecurityAnswer(username, respuesta_de_seguridad);
     if (!user) {
       throw new Error("Invalid username or security answer");
     }
 
-    // Hash de la nueva contraseña
     const salt = await bcryptjs.genSalt(10);
     const hashedPassword = await bcryptjs.hash(newPassword, salt);
 
-    // Actualizar la contraseña
     const query = {
       text: `
         UPDATE "Usuario"
@@ -825,6 +1142,9 @@ const changePasswordWithSecurity = async (username, respuesta_de_seguridad, newP
   }
 };
 
+// ============================================
+// SET EMAIL VERIFICATION TOKEN
+// ============================================
 const setEmailVerificationToken = async (id, token) => {
   try {
     const query = {
@@ -850,6 +1170,9 @@ const setEmailVerificationToken = async (id, token) => {
   }
 };
 
+// ============================================
+// VERIFY EMAIL
+// ============================================
 const verifyEmail = async (token) => {
   try {
     const query = {
@@ -877,6 +1200,9 @@ const verifyEmail = async (token) => {
   }
 };
 
+// ============================================
+// IS PROFESOR - CORREGIDO (SIN COMENTARIOS DENTRO DEL SQL)
+// ============================================
 const isProfesor = async (usuarioId) => {
   try {
     const query = {
@@ -895,6 +1221,9 @@ const isProfesor = async (usuarioId) => {
   }
 };
 
+// ============================================
+// IS REPRESENTANTE - CORREGIDO
+// ============================================
 const isRepresentante = async (usuarioId) => {
   try {
     const query = {
@@ -913,6 +1242,9 @@ const isRepresentante = async (usuarioId) => {
   }
 };
 
+// ============================================
+// EXPORTAR TODOS LOS MÉTODOS
+// ============================================
 export const UserModel = {
   create,
   findOneByUsername,
@@ -929,6 +1261,7 @@ export const UserModel = {
   clearPasswordResetToken,
   setActive,
   remove,
+  removeProfesorCompleto,
   findByCedula,
   searchByUsername,
   verifySecurityAnswer,
@@ -936,6 +1269,9 @@ export const UserModel = {
   verifyEmail,
   isProfesor,
   isRepresentante,
+  createProfesor,
+  updateUserByAdmin,
+  updateUserRole,
   migratePasswordToHash,
   migrateAllPasswords
 };

@@ -16,6 +16,19 @@ const routePermissions = {
   '/api/users/deactivate/:id': ['admin'],
   '/api/users/:id': ['admin'],
   
+  // ============================================
+  // 🟢 RUTAS DE TEACHERS - AGREGADAS AQUÍ 🟢
+  // ============================================
+  '/api/teachers/list': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/teachers/catalog/specialties': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/teachers/catalog/grades': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/teachers/:id': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/teachers/:id/specialty': ['admin'],
+  '/api/teachers/:id/grades': ['admin'],
+  '/api/teachers/:id/my-schedule': ['admin', 'docente'],
+  '/api/teachers/:id/my-students': ['docente'],
+  // ============================================
+  
   // Rutas de ejemplo para futuros módulos
   '/api/students': ['admin'],
   '/api/students/*': ['admin'],

@@ -1,7 +1,8 @@
+// backend/routes/user.routes.js
 import express from "express";
 import { UserController } from "../controllers/user.controller.js";
 import { verifyToken, verifyAdmin } from "../middlewares/jwt.middleware.js";
-import { autoVerifyRole } from "../middlewares/role.middleware.js"; // DESCOMENTA ESTA LÍNEA
+import { autoVerifyRole } from "../middlewares/role.middleware.js";
 
 const router = express.Router();
 
@@ -34,7 +35,12 @@ router.put("/change-password/security", verifyToken, autoVerifyRole, UserControl
 // Logout (requiere token válido)
 router.post("/logout", verifyToken, autoVerifyRole, UserController.logout);
 
-// Rutas administrativas (solo admin - doble protección)
+
+
+
+router.post("/create", verifyToken, verifyAdmin, autoVerifyRole, UserController.createUser); 
+router.put("/:id", verifyToken, verifyAdmin, autoVerifyRole, UserController.updateUser);   
+router.put("/:id/role", verifyToken, verifyAdmin, autoVerifyRole, UserController.updateUserRole); 
 router.put("/activate/:id", verifyToken, verifyAdmin, autoVerifyRole, UserController.activateUser);
 router.put("/deactivate/:id", verifyToken, verifyAdmin, autoVerifyRole, UserController.deactivateUser);
 router.delete("/:id", verifyToken, verifyAdmin, autoVerifyRole, UserController.deleteUser);

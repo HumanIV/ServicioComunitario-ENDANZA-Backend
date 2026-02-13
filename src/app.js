@@ -1,7 +1,11 @@
+// app.js - AGREGAR ESTAS LÍNEAS
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/user.routes.js";
+// ✅ IMPORTAR LAS RUTAS DE DOCENTES
+import teacherRoutes from "./routes/teacher.routes.js";  // <-- AGREGAR ESTA LÍNEA
 
 // IMPORTAR MIDDLEWARES DE PROTECCIÓN
 import { routeGuard } from "./middlewares/routeGuard.middleware.js";
@@ -60,6 +64,7 @@ app.get("/", (req, res) => {
     message: "Bienvenido a la API de Gescol",
     endpoints: {
       auth: "/api/users",
+      teachers: "/api/teachers",  // ✅ AGREGAR ESTO
       health: "/api/health",
       verify: "/api/verify-permission"
     },
@@ -85,14 +90,14 @@ app.get("/api/verify-permission", (req, res) => {
 // ============================================
 // MIDDLEWARE DE PROTECCIÓN GLOBAL DE RUTAS
 // ============================================
-// IMPORTANTE: Se coloca DESPUÉS de las rutas públicas
-// y ANTES de las rutas protegidas
 app.use(routeGuard());
 
 // ============================================
 // RUTAS PROTEGIDAS (REQUIEREN AUTENTICACIÓN)
 // ============================================
 app.use("/api/users", userRoutes);
+// ✅ REGISTRAR LAS RUTAS DE DOCENTES
+app.use("/api/teachers", teacherRoutes);  // <-- AGREGAR ESTA LÍNEA
 
 // Aquí agregarás otras rutas protegidas en el futuro:
 // app.use("/api/students", studentRoutes);
@@ -112,6 +117,7 @@ app.use((req, res) => {
     method: req.method,
     availableEndpoints: {
       auth: "/api/users",
+      teachers: "/api/teachers",  // ✅ AGREGAR ESTO
       health: "/api/health",
       verify: "/api/verify-permission"
     },
