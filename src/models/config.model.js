@@ -1,3 +1,5 @@
+// Archivo: backend/models/config.model.js
+
 import { db } from "../db/connection.database.js";
 
 // ============================================
@@ -52,58 +54,60 @@ const findActiveAcademicYear = async () => {
 };
 
 const createAcademicYear = async (name, startDate, endDate) => {
-  const client = await db.connect();
   try {
-    await client.query('BEGIN');
+    // Iniciamos una transacción manual
+    await db.query('BEGIN');
 
-    // 1. Desactivar el año actual
-    await client.query(`
-      UPDATE public."Ano_Academico" 
-      SET "activo" = false 
-      WHERE "activo" = true
-    `);
+    try {
+      // 1. Desactivar el año actual
+      await db.query(`
+        UPDATE public."Ano_Academico" 
+        SET "activo" = false 
+        WHERE "activo" = true
+      `);
 
-    // 2. Crear el nuevo año
-    const insertQuery = {
-      text: `
-        INSERT INTO public."Ano_Academico" 
-          ("nombre_ano", "estatus_ano", "inicio_ano", "fin_ano", "activo")
-        VALUES ($1, 'Activo', $2, $3, true)
-        RETURNING 
-          "Id_ano" as id,
-          "nombre_ano" as name
-      `,
-      values: [name, startDate, endDate],
-    };
-    
-    const { rows } = await client.query(insertQuery.text, insertQuery.values);
-    const newYear = rows[0];
+      // 2. Crear el nuevo año
+      const insertQuery = {
+        text: `
+          INSERT INTO public."Ano_Academico" 
+            ("nombre_ano", "estatus_ano", "inicio_ano", "fin_ano", "activo")
+          VALUES ($1, 'Activo', $2, $3, true)
+          RETURNING 
+            "Id_ano" as id,
+            "nombre_ano" as name
+        `,
+        values: [name, startDate, endDate],
+      };
+      
+      const { rows } = await db.query(insertQuery.text, insertQuery.values);
+      const newYear = rows[0];
 
-    // 3. Crear registros por defecto para las configuraciones
-    // Período de inscripción (por defecto con las mismas fechas, inactivo)
-    await client.query(
-      `INSERT INTO public."Periodo_Inscripcion" 
-        ("Id_ano", "fecha_inicio", "fecha_fin", "activo")
-       VALUES ($1, $2, $3, false)`,
-      [newYear.id, startDate, endDate]
-    );
+      // 3. Crear registros por defecto para las configuraciones
+      // Período de inscripción (por defecto con las mismas fechas, inactivo)
+      await db.query(
+        `INSERT INTO public."Periodo_Inscripcion" 
+          ("Id_ano", "fecha_inicio", "fecha_fin", "activo", "creado_en", "actualizado_en")
+         VALUES ($1, $2, $3, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [newYear.id, startDate, endDate]
+      );
 
-    // Período de subida de notas (por defecto con las mismas fechas, inactivo)
-    await client.query(
-      `INSERT INTO public."Periodo_Subida_Notas" 
-        ("Id_ano", "fecha_inicio", "fecha_fin", "activo")
-       VALUES ($1, $2, $3, false)`,
-      [newYear.id, startDate, endDate]
-    );
+      // Período de subida de notas (por defecto con las mismas fechas, inactivo)
+      await db.query(
+        `INSERT INTO public."Periodo_Subida_Notas" 
+          ("Id_ano", "fecha_inicio", "fecha_fin", "activo", "creado_en", "actualizado_en")
+         VALUES ($1, $2, $3, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [newYear.id, startDate, endDate]
+      );
 
-    await client.query('COMMIT');
-    return newYear;
+      await db.query('COMMIT');
+      return newYear;
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error("Error en createAcademicYear:", error);
     throw error;
-  } finally {
-    client.release();
   }
 };
 
@@ -134,24 +138,50 @@ const findEnrollmentPeriodByYearId = async (yearId) => {
 
 const updateEnrollmentPeriod = async (yearId, { fechaInicio, fechaFin, activo }) => {
   try {
-    const query = {
-      text: `
-        UPDATE public."Periodo_Inscripcion"
-        SET 
-          "fecha_inicio" = $1,
-          "fecha_fin" = $2,
-          "activo" = $3,
-          "actualizado_en" = CURRENT_TIMESTAMP
-        WHERE "Id_ano" = $4
-        RETURNING 
-          "fecha_inicio" as "fechaInicio",
-          "fecha_fin" as "fechaFin",
-          "activo"
-      `,
-      values: [fechaInicio, fechaFin, activo, yearId],
+    // Verificar si existe el registro
+    const checkQuery = {
+      text: `SELECT "Id_periodo_inscripcion" FROM public."Periodo_Inscripcion" WHERE "Id_ano" = $1`,
+      values: [yearId]
     };
-    const { rows } = await db.query(query.text, query.values);
-    return rows[0];
+    const checkResult = await db.query(checkQuery.text, checkQuery.values);
+    
+    if (checkResult.rows.length === 0) {
+      // Si no existe, insertar
+      const insertQuery = {
+        text: `
+          INSERT INTO public."Periodo_Inscripcion" 
+            ("Id_ano", "fecha_inicio", "fecha_fin", "activo", "creado_en", "actualizado_en")
+          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          RETURNING 
+            "fecha_inicio" as "fechaInicio",
+            "fecha_fin" as "fechaFin",
+            "activo"
+        `,
+        values: [yearId, fechaInicio, fechaFin, activo],
+      };
+      const { rows } = await db.query(insertQuery.text, insertQuery.values);
+      return rows[0];
+    } else {
+      // Si existe, actualizar
+      const updateQuery = {
+        text: `
+          UPDATE public."Periodo_Inscripcion"
+          SET 
+            "fecha_inicio" = $1,
+            "fecha_fin" = $2,
+            "activo" = $3,
+            "actualizado_en" = CURRENT_TIMESTAMP
+          WHERE "Id_ano" = $4
+          RETURNING 
+            "fecha_inicio" as "fechaInicio",
+            "fecha_fin" as "fechaFin",
+            "activo"
+        `,
+        values: [fechaInicio, fechaFin, activo, yearId],
+      };
+      const { rows } = await db.query(updateQuery.text, updateQuery.values);
+      return rows[0];
+    }
   } catch (error) {
     console.error("Error en updateEnrollmentPeriod:", error);
     throw error;
@@ -185,24 +215,50 @@ const findGradesPeriodByYearId = async (yearId) => {
 
 const updateGradesPeriod = async (yearId, { fechaInicio, fechaFin, activo }) => {
   try {
-    const query = {
-      text: `
-        UPDATE public."Periodo_Subida_Notas"
-        SET 
-          "fecha_inicio" = $1,
-          "fecha_fin" = $2,
-          "activo" = $3,
-          "actualizado_en" = CURRENT_TIMESTAMP
-        WHERE "Id_ano" = $4
-        RETURNING 
-          "fecha_inicio" as "fechaInicio",
-          "fecha_fin" as "fechaFin",
-          "activo"
-      `,
-      values: [fechaInicio, fechaFin, activo, yearId],
+    // Verificar si existe el registro
+    const checkQuery = {
+      text: `SELECT "Id_periodo_notas" FROM public."Periodo_Subida_Notas" WHERE "Id_ano" = $1`,
+      values: [yearId]
     };
-    const { rows } = await db.query(query.text, query.values);
-    return rows[0];
+    const checkResult = await db.query(checkQuery.text, checkQuery.values);
+    
+    if (checkResult.rows.length === 0) {
+      // Si no existe, insertar
+      const insertQuery = {
+        text: `
+          INSERT INTO public."Periodo_Subida_Notas" 
+            ("Id_ano", "fecha_inicio", "fecha_fin", "activo", "creado_en", "actualizado_en")
+          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          RETURNING 
+            "fecha_inicio" as "fechaInicio",
+            "fecha_fin" as "fechaFin",
+            "activo"
+        `,
+        values: [yearId, fechaInicio, fechaFin, activo],
+      };
+      const { rows } = await db.query(insertQuery.text, insertQuery.values);
+      return rows[0];
+    } else {
+      // Si existe, actualizar
+      const updateQuery = {
+        text: `
+          UPDATE public."Periodo_Subida_Notas"
+          SET 
+            "fecha_inicio" = $1,
+            "fecha_fin" = $2,
+            "activo" = $3,
+            "actualizado_en" = CURRENT_TIMESTAMP
+          WHERE "Id_ano" = $4
+          RETURNING 
+            "fecha_inicio" as "fechaInicio",
+            "fecha_fin" as "fechaFin",
+            "activo"
+        `,
+        values: [fechaInicio, fechaFin, activo, yearId],
+      };
+      const { rows } = await db.query(updateQuery.text, updateQuery.values);
+      return rows[0];
+    }
   } catch (error) {
     console.error("Error en updateGradesPeriod:", error);
     throw error;

@@ -7,6 +7,8 @@ import userRoutes from "./routes/user.routes.js";
 // ✅ IMPORTAR LAS RUTAS DE DOCENTES
 import teacherRoutes from "./routes/teacher.routes.js";  // <-- AGREGAR ESTA LÍNEA
 import configRoutes from "./routes/config.routes.js"; // <-- AGREGAR ESTA LÍNEA
+import sectionRoutes from "./routes/section.routes.js";
+import studentRoutes from "./routes/student.routes.js";
 
 // IMPORTAR MIDDLEWARES DE PROTECCIÓN
 import { routeGuard } from "./middlewares/routeGuard.middleware.js";
@@ -99,8 +101,9 @@ app.use(routeGuard());
 app.use("/api/users", userRoutes);
 // ✅ REGISTRAR LAS RUTAS DE DOCENTES
 app.use("/api/teachers", teacherRoutes);  // <-- AGREGAR ESTA LÍNEA
-app.use("/api/config", configRoutes); // <-- AGREGAR ESTA LÍNEA
-
+app.use("/api/config", configRoutes); // <-- AGREGAR ESTA 
+app.use("/api/sections", sectionRoutes); // 👈 NUEVO
+app.use("/api/students", studentRoutes); // <-- NUEVA RUTA
 // Aquí agregarás otras rutas protegidas en el futuro:
 // app.use("/api/students", studentRoutes);
 // app.use("/api/notas", notasRoutes);
