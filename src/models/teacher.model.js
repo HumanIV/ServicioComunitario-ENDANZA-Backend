@@ -123,33 +123,71 @@ const assignSpecialty = async (userId, specialty) => {
     }
 };
 
+
+
+
+
+
+
+
+
+
 // ============================================
-// ASIGNAR GRADOS AL DOCENTE - ¡CORREGIDO!
+// ASIGNAR GRADOS AL DOCENTE - VERSIÓN CORREGIDA
 // ============================================
 const assignGrades = async (userId, gradeIds) => {
     try {
-        // 1. Obtener el Id_profesor
-        const profResult = await db.query(
+        console.log(`📝 Asignando grados a usuario ${userId}:`, gradeIds);
+        
+        // 1. Verificar si el usuario existe y es docente
+        const userCheck = await db.query(
+            'SELECT "Id_rol" FROM "Usuario" WHERE "Id_usuario" = $1',
+            [userId]
+        );
+        
+        if (userCheck.rows.length === 0) {
+            throw new Error(`Usuario ${userId} no existe`);
+        }
+        
+        if (userCheck.rows[0].Id_rol !== 2) {
+            throw new Error(`Usuario ${userId} no es docente (rol: ${userCheck.rows[0].Id_rol})`);
+        }
+        
+        // 2. Obtener el Id_profesor (o crearlo si no existe)
+        let profResult = await db.query(
             'SELECT "Id_profesor" FROM "Profesor" WHERE "Id_usuario" = $1',
             [userId]
         );
         
+        let profesorId;
+        
         if (profResult.rows.length === 0) {
-            throw new Error("Profesor no encontrado");
+            console.log(`⚠️ Profesor no encontrado para usuario ${userId}, creando automáticamente...`);
+            
+            // Crear el profesor automáticamente
+            const insertResult = await db.query(
+                `INSERT INTO "Profesor" ("Id_usuario", "especialidad")
+                 VALUES ($1, NULL)
+                 RETURNING "Id_profesor"`,
+                [userId]
+            );
+            
+            profesorId = insertResult.rows[0].Id_profesor;
+            console.log(`✅ Profesor creado automáticamente con ID: ${profesorId}`);
+        } else {
+            profesorId = profResult.rows[0].Id_profesor;
         }
         
-        const profesorId = profResult.rows[0].Id_profesor;
-        
-        // 2. Iniciar transacción
+        // 3. Iniciar transacción
         await db.query('BEGIN');
         
-        // 3. Eliminar asignaciones actuales
+        // 4. Eliminar asignaciones actuales
         await db.query(
             'DELETE FROM "Profesor_Grado" WHERE "Id_profesor" = $1',
             [profesorId]
         );
         
-        // 4. Insertar nuevas asignaciones
+        // 5. Insertar nuevas asignaciones
         if (gradeIds && gradeIds.length > 0) {
             for (const gradoId of gradeIds) {
                 await db.query(
@@ -160,7 +198,7 @@ const assignGrades = async (userId, gradeIds) => {
             }
         }
         
-        // 5. Obtener los grados asignados para devolverlos
+        // 6. Obtener los grados asignados
         const gradesResult = await db.query(
             `SELECT 
                 g."Id_grado" as id,
@@ -173,13 +211,15 @@ const assignGrades = async (userId, gradeIds) => {
             [profesorId]
         );
         
-        // 6. Commit transacción
+        // 7. Commit transacción
         await db.query('COMMIT');
+        
+        console.log(`✅ Grados asignados correctamente a profesor ${profesorId}:`, gradesResult.rows);
         
         return { 
             profesorId, 
             gradeIds,
-            grades: gradesResult.rows  // ✅ DEVOLVER LOS GRADOS ASIGNADOS
+            grades: gradesResult.rows
         };
     } catch (error) {
         await db.query('ROLLBACK');
@@ -187,6 +227,13 @@ const assignGrades = async (userId, gradeIds) => {
         throw error;
     }
 };
+
+
+
+
+
+
+
 
 
 // ============================================
