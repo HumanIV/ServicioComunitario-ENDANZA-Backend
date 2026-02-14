@@ -8,12 +8,18 @@ const router = Router();
 
 // ============================================
 // RUTAS PÚBLICAS DEL SISTEMA (con autoVerifyRole)
-// Cualquier usuario autenticado puede ver listados básicos
 // ============================================
 router.get("/list", 
     verifyToken, 
-    autoVerifyRole,  // ✅ Usa tu middleware existente
+    autoVerifyRole,
     TeacherController.listTeachers
+);
+
+// Listar docentes filtrados por año académico
+router.get("/list/year/:academicYearId", 
+    verifyToken, 
+    autoVerifyRole,
+    TeacherController.listTeachersByYear
 );
 
 router.get("/catalog/specialties", 
@@ -34,47 +40,81 @@ router.get("/:id",
     TeacherController.getTeacherById
 );
 
+// Obtener docente con asignaciones de un año específico
+router.get("/:userId/year/:academicYearId", 
+    verifyToken, 
+    autoVerifyRole,
+    TeacherController.getTeacherWithYear
+);
+
+// Obtener grados de un docente para un año específico
+router.get("/:userId/grades/year/:academicYearId", 
+    verifyToken, 
+    autoVerifyRole,
+    TeacherController.getTeacherGradesByYear
+);
+
 // ============================================
 // RUTAS DE ADMINISTRACIÓN (solo admin)
-// Usando verifyRole explícito para máxima seguridad
 // ============================================
 router.put("/:id/specialty", 
     verifyToken, 
-    verifyRole(['admin']),  // ✅ Solo admin
+    verifyRole(['admin']),
     TeacherController.assignSpecialty
 );
 
+// NUEVA RUTA: Asignar especialidad con año académico
+router.put("/:id/specialty/year", 
+    verifyToken, 
+    verifyRole(['admin']),
+    TeacherController.assignSpecialtyByYear
+);
+
+// Asignar grados con año académico (año en body)
 router.put("/:id/grades", 
     verifyToken, 
-    verifyRole(['admin']),  // ✅ Solo admin
+    verifyRole(['admin']),
     TeacherController.assignGrades
+);
+
+// Asignar grados con año en URL
+router.post("/:userId/grades/year/:academicYearId", 
+    verifyToken, 
+    verifyRole(['admin']),
+    TeacherController.assignGradesWithYear
+);
+
+// Copiar asignaciones de un año a otro
+router.post("/copy-assignments/:fromYearId/:toYearId", 
+    verifyToken, 
+    verifyRole(['admin']),
+    TeacherController.copyAssignments
 );
 
 router.put("/:id", 
     verifyToken, 
-    verifyRole(['admin']),  // ✅ Solo admin
+    verifyRole(['admin']),
     TeacherController.updateTeacher
 );
 
 router.delete("/:id", 
     verifyToken, 
-    verifyRole(['admin']),  // ✅ Solo admin
+    verifyRole(['admin']),
     TeacherController.deleteTeacher
 );
 
 // ============================================
 // RUTAS ESPECÍFICAS PARA DOCENTES
-// Solo los propios docentes pueden ver su información detallada
 // ============================================
 router.get("/:id/my-schedule", 
     verifyToken, 
-    verifyRole(['admin', 'docente']),  // ✅ Admin y docente
+    verifyRole(['admin', 'docente']),
     TeacherController.getMySchedule
 );
 
 router.get("/:id/my-students", 
     verifyToken, 
-    verifyRole(['docente']),  // ✅ Solo docente
+    verifyRole(['docente']),
     TeacherController.getMyStudents
 );
 

@@ -9,6 +9,8 @@ import teacherRoutes from "./routes/teacher.routes.js";  // <-- AGREGAR ESTA LÍ
 import configRoutes from "./routes/config.routes.js"; // <-- AGREGAR ESTA LÍNEA
 import sectionRoutes from "./routes/section.routes.js";
 import studentRoutes from "./routes/student.routes.js";
+import notaRoutes from "./routes/nota.routes.js";
+import boletinRoutes from "./routes/boletin.routes.js";
 
 // IMPORTAR MIDDLEWARES DE PROTECCIÓN
 import { routeGuard } from "./middlewares/routeGuard.middleware.js";
@@ -104,6 +106,11 @@ app.use("/api/teachers", teacherRoutes);  // <-- AGREGAR ESTA LÍNEA
 app.use("/api/config", configRoutes); // <-- AGREGAR ESTA 
 app.use("/api/sections", sectionRoutes); // 👈 NUEVO
 app.use("/api/students", studentRoutes); // <-- NUEVA RUTA
+
+// Y donde están las otras rutas:
+app.use("/api/notas", notaRoutes);
+app.use("/api/boletines", boletinRoutes);
+
 // Aquí agregarás otras rutas protegidas en el futuro:
 // app.use("/api/students", studentRoutes);
 // app.use("/api/notas", notasRoutes);
