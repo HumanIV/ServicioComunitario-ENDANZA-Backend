@@ -1,16 +1,14 @@
-// app.js - AGREGAR ESTAS LÍNEAS
-
+// app.js - VERSIÓN CORREGIDA
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./routes/user.routes.js";
-// ✅ IMPORTAR LAS RUTAS DE DOCENTES
-import teacherRoutes from "./routes/teacher.routes.js";  // <-- AGREGAR ESTA LÍNEA
-import configRoutes from "./routes/config.routes.js"; // <-- AGREGAR ESTA LÍNEA
-import sectionRoutes from "./routes/section.routes.js";
+import teacherRoutes from "./routes/teacher.routes.js";
+import configRoutes from "./routes/config.routes.js";
 import studentRoutes from "./routes/student.routes.js";
 import notaRoutes from "./routes/nota.routes.js";
 import boletinRoutes from "./routes/boletin.routes.js";
+import scheduleRoutes from './routes/schedule.routes.js'; // ← ESTO YA MANEJA /sections, /classrooms, etc.
 
 // IMPORTAR MIDDLEWARES DE PROTECCIÓN
 import { routeGuard } from "./middlewares/routeGuard.middleware.js";
@@ -32,9 +30,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // ============================================
-// MIDDLEWARES BÁSICOS
+// MIDDLEWARES BÁSICOS - ¡IMPORTANTE: DEBEN IR PRIMERO!
 // ============================================
-app.use(express.json());
+app.use(express.json()); // ← ESTO ES CRUCIAL PARA QUE EL BODY LLEGUE
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================
@@ -69,7 +67,12 @@ app.get("/", (req, res) => {
     message: "Bienvenido a la API de Gescol",
     endpoints: {
       auth: "/api/users",
-      teachers: "/api/teachers",  // ✅ AGREGAR ESTO
+      teachers: "/api/teachers",
+      config: "/api/config",
+      students: "/api/students",
+      notas: "/api/notas",
+      boletines: "/api/boletines",
+      schedules: "/api/sections, /api/classrooms, /api/days, /api/blocks", // ← TODO en scheduleRoutes
       health: "/api/health",
       verify: "/api/verify-permission"
     },
@@ -98,23 +101,15 @@ app.get("/api/verify-permission", (req, res) => {
 app.use(routeGuard());
 
 // ============================================
-// RUTAS PROTEGIDAS (REQUIEREN AUTENTICACIÓN)
+// RUTAS PROTEGIDAS - UNA SOLA VEZ CADA UNA
 // ============================================
 app.use("/api/users", userRoutes);
-// ✅ REGISTRAR LAS RUTAS DE DOCENTES
-app.use("/api/teachers", teacherRoutes);  // <-- AGREGAR ESTA LÍNEA
-app.use("/api/config", configRoutes); // <-- AGREGAR ESTA 
-app.use("/api/sections", sectionRoutes); // 👈 NUEVO
-app.use("/api/students", studentRoutes); // <-- NUEVA RUTA
-
-// Y donde están las otras rutas:
+app.use("/api/teachers", teacherRoutes);
+app.use("/api/config", configRoutes);
+app.use("/api/students", studentRoutes);
 app.use("/api/notas", notaRoutes);
 app.use("/api/boletines", boletinRoutes);
-
-// Aquí agregarás otras rutas protegidas en el futuro:
-// app.use("/api/students", studentRoutes);
-// app.use("/api/notas", notasRoutes);
-// etc.
+app.use('/api', scheduleRoutes); // ← ESTO YA INCLUYE /sections, /classrooms, /days, /blocks
 
 // ============================================
 // MIDDLEWARE PARA RUTAS NO ENCONTRADAS
@@ -129,7 +124,12 @@ app.use((req, res) => {
     method: req.method,
     availableEndpoints: {
       auth: "/api/users",
-      teachers: "/api/teachers",  // ✅ AGREGAR ESTO
+      teachers: "/api/teachers",
+      config: "/api/config",
+      students: "/api/students",
+      notas: "/api/notas",
+      boletines: "/api/boletines",
+      schedules: "/api/sections, /api/classrooms, /api/days, /api/blocks",
       health: "/api/health",
       verify: "/api/verify-permission"
     },

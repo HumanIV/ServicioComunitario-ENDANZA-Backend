@@ -17,7 +17,7 @@ const routePermissions = {
   '/api/users/:id': ['admin'],
   
   // ============================================
-  // 🟢 RUTAS DE TEACHERS - AGREGADAS AQUÍ 🟢
+  // 🟢 RUTAS DE TEACHERS
   // ============================================
   '/api/teachers/list': ['admin', 'docente', 'representante', 'estudiante'],
   '/api/teachers/catalog/specialties': ['admin', 'docente', 'representante', 'estudiante'],
@@ -27,9 +27,23 @@ const routePermissions = {
   '/api/teachers/:id/grades': ['admin'],
   '/api/teachers/:id/my-schedule': ['admin', 'docente'],
   '/api/teachers/:id/my-students': ['docente'],
-  // ============================================
   
-  // Rutas de ejemplo para futuros módulos
+  // ============================================
+  // 🟢 RUTAS DE SECTIONS/HORARIOS - AGREGADAS 🟢
+  // ============================================
+  '/api/sections': ['admin', 'docente'],
+  '/api/sections/*': ['admin', 'docente'],
+  '/api/sections/:id': ['admin', 'docente'],
+  '/api/schedules': ['admin', 'docente'],
+  '/api/schedules/*': ['admin', 'docente'],
+  '/api/classrooms': ['admin', 'docente'],
+  '/api/days': ['admin', 'docente'],
+  '/api/blocks': ['admin', 'docente'],
+  '/api/schedules/check-availability': ['admin', 'docente'],
+  
+  // ============================================
+  // 🟢 RUTAS EXISTENTES
+  // ============================================
   '/api/students': ['admin'],
   '/api/students/*': ['admin'],
   '/api/inscripcion': ['admin'],
@@ -37,7 +51,6 @@ const routePermissions = {
   '/api/aulas': ['admin'],
   '/api/aulas/*': ['admin'],
   
-  // Rutas compartidas admin + docente
   '/api/notas': ['admin', 'docente'],
   '/api/notas/*': ['admin', 'docente'],
   '/api/boletin': ['admin', 'docente'],
@@ -45,12 +58,10 @@ const routePermissions = {
   '/api/horario': ['admin', 'docente'],
   '/api/horario/*': ['admin', 'docente'],
   
-  // Rutas específicas de docente
   '/api/docente/inicio': ['docente'],
   '/api/docente/horario': ['docente'],
   '/api/docente/estudiantes': ['docente'],
   
-  // Rutas específicas de representante
   '/api/representante/inicio': ['representante'],
   '/api/representante/estudiantes': ['representante'],
   '/api/representante/boletin': ['representante'],
@@ -81,6 +92,7 @@ export const autoVerifyRole = async (req, res, next) => {
     // Si no hay usuario autenticado, dejar que verifyToken maneje el error
     if (!req.user || !req.user.userId) {
       console.log(`⚠️ No hay usuario autenticado, continuando para que verifyToken maneje el error...`);
+      console.log('📦 req.body después de autoVerifyRole:', req.body);
       return next();
     }
 
