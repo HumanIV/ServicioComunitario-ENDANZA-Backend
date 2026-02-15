@@ -8,7 +8,9 @@ import configRoutes from "./routes/config.routes.js";
 import studentRoutes from "./routes/student.routes.js";
 import notaRoutes from "./routes/nota.routes.js";
 import boletinRoutes from "./routes/boletin.routes.js";
-import scheduleRoutes from './routes/schedule.routes.js'; // ← ESTO YA MANEJA /sections, /classrooms, etc.
+import scheduleRoutes from './routes/schedule.routes.js';
+import representanteRoutes from './routes/representante.routes.js';
+import gradesRoutes from './routes/grades.routes.js';
 
 // IMPORTAR MIDDLEWARES DE PROTECCIÓN
 import { routeGuard } from "./middlewares/routeGuard.middleware.js";
@@ -110,6 +112,8 @@ app.use("/api/students", studentRoutes);
 app.use("/api/notas", notaRoutes);
 app.use("/api/boletines", boletinRoutes);
 app.use('/api', scheduleRoutes); // ← ESTO YA INCLUYE /sections, /classrooms, /days, /blocks
+app.use('/api/representantes', representanteRoutes);
+app.use('/api', gradesRoutes);
 
 // ============================================
 // MIDDLEWARE PARA RUTAS NO ENCONTRADAS

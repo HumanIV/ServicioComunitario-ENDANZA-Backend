@@ -210,6 +210,53 @@ const checkAvailability = async (req, res) => {
   }
 };
 
+
+
+
+const getSectionStudents = async (req, res) => {
+    try {
+        const { sectionId } = req.params;
+        
+        // Aquí obtienes los estudiantes de la sección desde la BD
+        const students = await SectionModel.getStudentsBySection(sectionId);
+        
+        return res.json({
+            ok: true,
+            data: students
+        });
+    } catch (error) {
+        return res.status(500).json({
+            ok: false,
+            msg: "Error al obtener estudiantes de la sección"
+        });
+    }
+};
+
+
+const getEvaluationStructure = async (req, res) => {
+    try {
+        const { sectionId } = req.params;
+        
+        // Aquí obtienes la estructura de evaluaciones
+        const structure = await SectionModel.getEvaluationStructure(sectionId);
+        
+        return res.json({
+            ok: true,
+            data: structure
+        });
+    } catch (error) {
+        return res.status(500).json({
+            ok: false,
+            msg: "Error al obtener estructura de evaluaciones"
+        });
+    }
+};
+
+
+
+
+
+
 export const SectionController = {
   listSections,
   getSection,
@@ -218,5 +265,7 @@ export const SectionController = {
   deleteSection,
   addSchedule,
   removeSchedule,
-  checkAvailability
+  checkAvailability,
+  getSectionStudents,
+  getEvaluationStructure 
 };
