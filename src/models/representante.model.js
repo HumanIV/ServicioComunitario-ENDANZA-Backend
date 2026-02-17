@@ -1,4 +1,3 @@
-// backend/models/representante.model.js
 import { db } from "../db/connection.database.js";
 import bcryptjs from "bcryptjs";
 
@@ -270,34 +269,66 @@ export const RepresentanteModel = {
     }
   },
 
-
-
   // Listar TODOS los representantes
-list: async () => {
+  list: async () => {
+    try {
+      const query = {
+        text: `
+          SELECT 
+            u."Id_usuario" as id_usuario,
+            r."Id_representante" as id_representante,
+            u."cedula" as dni,
+            u."nombre" as first_name,
+            u."apellido" as last_name,
+            u."telefono" as phone,
+            u."correo" as email,
+            u."estatus_usuario" as status
+          FROM "Usuario" u
+          INNER JOIN "Representante" r ON u."Id_usuario" = r."Id_usuario"
+          WHERE u."Id_rol" = 4
+          ORDER BY u."apellido", u."nombre"
+        `
+      };
+      
+      const { rows } = await db.query(query.text);
+      return rows;
+    } catch (error) {
+      console.error("Error en list:", error);
+      throw error;
+    }
+  },
+findByUserId: async (userId) => {
   try {
+    console.log("🔍 Buscando representante para userId:", userId);
+    
     const query = {
       text: `
         SELECT 
-          u."Id_usuario" as id_usuario,
-          r."Id_representante" as id_representante,
-          u."cedula" as dni,
-          u."nombre" as first_name,
-          u."apellido" as last_name,
-          u."telefono" as phone,
-          u."correo" as email,
-          u."estatus_usuario" as status
-        FROM "Usuario" u
-        INNER JOIN "Representante" r ON u."Id_usuario" = r."Id_usuario"
-        WHERE u."Id_rol" = 4
-        ORDER BY u."apellido", u."nombre"
-      `
+          r."Id_representante" as id,
+          r."Id_usuario" as user_id,
+          u."nombre",
+          u."apellido",
+          u."cedula",
+          u."correo" as email
+        FROM "Representante" r
+        INNER JOIN "Usuario" u ON r."Id_usuario" = u."Id_usuario"
+        WHERE u."Id_usuario" = $1
+      `,
+      values: [userId]
     };
     
-    const { rows } = await db.query(query.text);
-    return rows;
+    console.log("📝 Query a ejecutar:", query.text);
+    console.log("📊 Valores:", query.values);
+    
+    const { rows } = await db.query(query.text, query.values);
+    
+    console.log("✅ Filas encontradas:", rows.length);
+    console.log("📦 Datos:", rows);
+    
+    return rows[0] || null;
   } catch (error) {
-    console.error("Error en list:", error);
+    console.error("❌ Error en findByUserId:", error);
     throw error;
   }
-},
+}
 };

@@ -253,6 +253,78 @@ const updateGradesPeriod = async (req, res) => {
   }
 };
 
+
+
+
+
+/**
+ * Obtiene el año académico activo (para representantes)
+ * Versión pública sin verificación de admin
+ */
+const getActiveAcademicYearPublic = async (req, res) => {
+  try {
+    const activeYear = await ConfigModel.findActiveAcademicYear();
+    
+    return res.json({
+      ok: true,
+      data: activeYear,
+    });
+  } catch (error) {
+    console.error("Error en getActiveAcademicYearPublic:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al obtener año activo",
+      error: error.message,
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+/**
+ * Obtiene el período de inscripción para un año (versión pública para representantes)
+ */
+const getEnrollmentPeriodPublic = async (req, res) => {
+  try {
+    const { yearId } = req.params;
+
+    if (!yearId) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El ID del año es requerido",
+      });
+    }
+
+    const period = await ConfigModel.findEnrollmentPeriodByYearId(yearId);
+
+    if (!period) {
+      // Devolver objeto vacío pero no error 404
+      return res.json({
+        ok: true,
+        data: { fechaInicio: '', fechaFin: '', activo: false },
+      });
+    }
+
+    return res.json({
+      ok: true,
+      data: period,
+    });
+  } catch (error) {
+    console.error("Error en getEnrollmentPeriodPublic:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al obtener período de inscripción",
+      error: error.message,
+    });
+  }
+};
+
 // ============================================
 // EXPORTAR CONTROLADOR
 // ============================================
@@ -261,10 +333,12 @@ export const ConfigController = {
   getAcademicYears,
   getActiveAcademicYear,
   createAcademicYear,
+  getActiveAcademicYearPublic,
   
   // Período de inscripción
   getEnrollmentPeriod,
   updateEnrollmentPeriod,
+  getEnrollmentPeriodPublic,
   
   // Período de subida de notas
   getGradesPeriod,

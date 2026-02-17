@@ -12,6 +12,40 @@ const router = express.Router();
 // Como SuperRoot es básicamente un Admin con más poder,
 // usamos verifyAdmin que verifica Id_rol === 1
 
+
+
+// ============================================
+// RUTA PÚBLICA PARA AÑO ACTIVO (sin verifyAdmin)
+// ============================================
+router.get(
+  "/academic-years/active/public", 
+  verifyToken, 
+  autoVerifyRole,  // 👈 SIN verifyAdmin
+  ConfigController.getActiveAcademicYearPublic
+);
+
+// ============================================
+// RUTA PÚBLICA PARA PERÍODO DE INSCRIPCIÓN (sin verifyAdmin)
+// ============================================
+router.get(
+  "/enrollment-period/:yearId/public",  // 👈 NUEVA RUTA PÚBLICA
+  verifyToken, 
+  autoVerifyRole,  // 👈 SIN verifyAdmin
+  ConfigController.getEnrollmentPeriodPublic
+);
+
+
+
+// ============================================
+// RUTA PÚBLICA PARA AÑO ACTIVO (sin verifyAdmin)
+// ============================================
+router.get(
+  "/academic-years/active/public", 
+  verifyToken, 
+  autoVerifyRole,  // 👈 SIN verifyAdmin
+  ConfigController.getActiveAcademicYearPublic
+);
+
 // ============================================
 // RUTAS PARA AÑOS ACADÉMICOS
 // ============================================
@@ -76,5 +110,9 @@ router.put(
   autoVerifyRole, 
   ConfigController.updateGradesPeriod
 );
+
+
+
+
 
 export default router;

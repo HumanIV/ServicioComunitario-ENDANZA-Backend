@@ -7,10 +7,36 @@ import { autoVerifyRole } from "../middlewares/role.middleware.js";
 const router = express.Router();
 
 // ============================================
-// RUTAS PARA ESTUDIANTES
+// 🟢 PRIMERO: RUTAS ESPECÍFICAS (sin verifyAdmin)
 // ============================================
 
-// Todas las rutas requieren autenticación y rol de admin/superroot
+// Ruta para representantes (DEBE IR PRIMERO)
+router.get(
+  "/mis-estudiantes", 
+  verifyToken, 
+  autoVerifyRole,
+  StudentController.getMyStudents
+);
+
+// Ruta para perfil de estudiante para representantes (DEBE IR ANTES DE /:id)
+router.get(
+  "/:id/representante", 
+  verifyToken, 
+  autoVerifyRole,
+  StudentController.getStudentForRepresentante
+);
+
+// Ruta para obtener boletines de un estudiante (para representantes)
+router.get(
+  "/:id/boletines", 
+  verifyToken, 
+  autoVerifyRole,
+  StudentController.getStudentBoletines
+);
+
+// ============================================
+// 🔴 DESPUÉS: RUTAS GENÉRICAS (con verifyAdmin)
+// ============================================
 router.get("/", verifyToken, verifyAdmin, autoVerifyRole, StudentController.listStudents);
 router.get("/search", verifyToken, verifyAdmin, autoVerifyRole, StudentController.searchStudents);
 router.get("/:id", verifyToken, verifyAdmin, autoVerifyRole, StudentController.getStudent);

@@ -456,6 +456,130 @@ const existsByCedula = async (cedula, excludeId = null) => {
   }
 };
 
+
+
+
+
+/**
+ * Obtiene estudiantes por ID de representante
+ * @param {number} representanteId - ID del representante
+ * @returns {Promise<Array>}
+ */
+const findByRepresentante = async (representanteId) => {
+  try {
+    const query = {
+      text: `
+        SELECT 
+          e."Id_estudiante" as id,
+          e."nombre" as first_name,
+          e."apellido" as last_name,
+          e."cedula" as dni,
+          e."fecha_nacimiento" as birth_date,
+          e."genero" as gender,
+          nl."nivel" as grade_level,
+          nd."nivel_danza" as dance_level,
+          e."seguro_escolar" as school_insurance
+        FROM "Estudiante" e
+        LEFT JOIN "Nivel_Escolar" nl ON e."Id_nivel" = nl."Id_nivel"
+        LEFT JOIN "Nivel_Danza" nd ON e."Id_nivel_danza" = nd."Id_nivel_danza"
+        WHERE e."Id_representante" = $1
+        ORDER BY e."apellido", e."nombre"
+      `,
+      values: [representanteId]
+    };
+    const { rows } = await db.query(query.text, query.values);
+    return rows;
+  } catch (error) {
+    console.error("Error en findByRepresentante:", error);
+    throw error;
+  }
+};
+
+
+
+/**
+ * Obtiene los boletines de un estudiante por año académico
+ * @param {number} studentId - ID del estudiante
+ * @param {number} academicYearId - ID del año académico (opcional)
+ * @returns {Promise<Array>}
+ */
+const getStudentBoletines = async (studentId, academicYearId = null) => {
+  try {
+    let query = {
+      text: `
+        SELECT 
+          bn."Id_boleta" as id,
+          bn."puntaje_final_lapso" as final_score,
+          bn."fecha_emision" as issue_date,
+          bn."descargas" as downloads,
+          bn."disponible" as available,
+          l."Id_lapso" as period_id,
+          l."nombre_lapso" as period_name,
+          a."Id_ano" as academic_year_id,
+          a."nombre_ano" as academic_year_name,
+          m."Id_materia" as subject_id,
+          m."nombre_materia" as subject_name,
+          m."ano_materia" as subject_year
+        FROM "Boleta_Notas" bn
+        INNER JOIN "Lapso" l ON bn."Id_lapso" = l."Id_lapso"
+        INNER JOIN "Ano_Academico" a ON l."Id_ano" = a."Id_ano"
+        INNER JOIN "Materia" m ON bn."Id_materia" = m."Id_materia"
+        WHERE bn."Id_estudiante" = $1
+      `
+    };
+
+    const values = [studentId];
+
+    if (academicYearId) {
+      query.text += ` AND a."Id_ano" = $2`;
+      values.push(academicYearId);
+    }
+
+    query.text += ` ORDER BY a."Id_ano" DESC, l."Id_lapso" ASC`;
+    query.values = values;
+
+    const { rows } = await db.query(query.text, query.values);
+    
+    // Agrupar por año académico
+    const boletinesPorAno = {};
+    
+    rows.forEach(row => {
+      if (!boletinesPorAno[row.academic_year_id]) {
+        boletinesPorAno[row.academic_year_id] = {
+          academic_year_id: row.academic_year_id,
+          academic_year_name: row.academic_year_name,
+          periods: []
+        };
+      }
+      
+      boletinesPorAno[row.academic_year_id].periods.push({
+        period_id: row.period_id,
+        period_name: row.period_name,
+        subjects: [{
+          subject_id: row.subject_id,
+          subject_name: row.subject_name,
+          subject_year: row.subject_year,
+          final_score: row.final_score,
+          issue_date: row.issue_date,
+          downloads: row.downloads,
+          available: row.available
+        }]
+      });
+    });
+
+    return Object.values(boletinesPorAno);
+  } catch (error) {
+    console.error("Error en getStudentBoletines:", error);
+    throw error;
+  }
+};
+
+
+
+
+
+
+
 export const StudentModel = {
   findAll,
   findById,
@@ -466,5 +590,7 @@ export const StudentModel = {
   enrollInSection,
   removeFromSection,
   search,
-  existsByCedula
+  existsByCedula,
+  findByRepresentante, // 👈 NUEVO
+  getStudentBoletines,
 };
