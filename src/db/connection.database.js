@@ -5,9 +5,9 @@ const { Pool } = pkg;
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'Endanza',
-  password: process.env.DB_PASSWORD || 'angel123',
-  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'endanz',
+  password: process.env.DB_PASSWORD || 'Yoll0209',
+  port: process.env.DB_PORT || 5434,
   max: 20, // número máximo de clientes en el pool
   idleTimeoutMillis: 30000, // tiempo de inactividad antes de cerrar un cliente
   connectionTimeoutMillis: 2000, // tiempo máximo para obtener una conexión

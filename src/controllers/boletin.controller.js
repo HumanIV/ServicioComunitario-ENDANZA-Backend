@@ -9,7 +9,7 @@ import { BoletinModel } from "../models/boletin.model.js";
 const getBoletines = async (req, res) => {
   try {
     const { academicYearId } = req.query;
-    
+
     if (!academicYearId) {
       return res.status(400).json({
         ok: false,
@@ -18,7 +18,7 @@ const getBoletines = async (req, res) => {
     }
 
     const boletines = await BoletinModel.findByYearId(academicYearId);
-    
+
     return res.json({
       ok: true,
       data: boletines
@@ -37,23 +37,23 @@ const updateBoletin = async (req, res) => {
   try {
     const { id } = req.params;
     const { disponible } = req.body;
-    
+
     if (disponible === undefined) {
       return res.status(400).json({
         ok: false,
         msg: "El estado 'disponible' es requerido"
       });
     }
-    
+
     const result = await BoletinModel.toggleDisponible(id, disponible);
-    
+
     if (!result) {
       return res.status(404).json({
         ok: false,
         msg: "Boletín no encontrado"
       });
     }
-    
+
     return res.json({
       ok: true,
       msg: `Boletín ${disponible ? 'habilitado' : 'deshabilitado'} correctamente`,
@@ -72,16 +72,16 @@ const updateBoletin = async (req, res) => {
 const habilitarTodos = async (req, res) => {
   try {
     const { academicYearId } = req.body;
-    
+
     if (!academicYearId) {
       return res.status(400).json({
         ok: false,
         msg: "El ID del año académico es requerido"
       });
     }
-    
+
     const result = await BoletinModel.habilitarTodos(academicYearId);
-    
+
     return res.json({
       ok: true,
       msg: `${result.actualizados} boletines habilitados correctamente`,
@@ -100,9 +100,9 @@ const habilitarTodos = async (req, res) => {
 const incrementarDescarga = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const result = await BoletinModel.incrementarDescarga(id);
-    
+
     return res.json({
       ok: true,
       msg: "Descarga registrada",
@@ -118,9 +118,50 @@ const incrementarDescarga = async (req, res) => {
   }
 };
 
+const generarBoletines = async (req, res) => {
+  try {
+    const { studentIds, academicYearId } = req.body;
+
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        msg: "Se requiere una lista de IDs de estudiantes"
+      });
+    }
+
+    if (!academicYearId) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El ID del año académico es requerido"
+      });
+    }
+
+    const resultados = [];
+    for (const studentId of studentIds) {
+      const resultado = await BoletinModel.generarBoletin(studentId, academicYearId);
+      resultados.push(resultado);
+    }
+
+    return res.json({
+      ok: true,
+      msg: `${resultados.length} boletines generados correctamente`,
+      data: resultados
+    });
+
+  } catch (error) {
+    console.error("Error en generarBoletines:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al generar boletines",
+      error: error.message
+    });
+  }
+};
+
 export const BoletinController = {
   getBoletines,
   updateBoletin,
   habilitarTodos,
-  incrementarDescarga
+  incrementarDescarga,
+  generarBoletines
 };

@@ -9,32 +9,32 @@ const router = Router();
 // ============================================
 // RUTAS EXISTENTES DE SECCIONES
 // ============================================
-router.get("/sections", 
-    verifyToken, 
+router.get("/sections",
+    verifyToken,
     autoVerifyRole,
     SectionController.listSections
 );
 
-router.get("/sections/:id", 
-    verifyToken, 
+router.get("/sections/:id",
+    verifyToken,
     autoVerifyRole,
     SectionController.getSection
 );
 
-router.post("/sections", 
-    verifyToken, 
+router.post("/sections",
+    verifyToken,
     autoVerifyRole,
     SectionController.createSection
 );
 
-router.put("/sections/:id", 
-    verifyToken, 
+router.put("/sections/:id",
+    verifyToken,
     autoVerifyRole,
     SectionController.updateSection
 );
 
-router.delete("/sections/:id", 
-    verifyToken, 
+router.delete("/sections/:id",
+    verifyToken,
     autoVerifyRole,
     SectionController.deleteSection
 );
@@ -47,8 +47,8 @@ router.delete("/sections/:id",
  * Obtiene los estudiantes de una sección específica
  * Útil para cargar la lista de estudiantes en el módulo de notas
  */
-router.get("/sections/:sectionId/students", 
-    verifyToken, 
+router.get("/sections/:sectionId/students",
+    verifyToken,
     autoVerifyRole,
     SectionController.getSectionStudents
 );
@@ -57,20 +57,12 @@ router.get("/sections/:sectionId/students",
  * Obtiene la estructura de evaluaciones de una sección
  * Define cuántas evaluaciones tiene la materia y sus pesos
  */
-router.get("/sections/:sectionId/evaluations", 
-    verifyToken, 
+router.get("/sections/:sectionId/evaluations",
+    verifyToken,
     autoVerifyRole,
     SectionController.getEvaluationStructure
 );
 
-/**
- * Obtiene el horario completo de una sección
- * Para mostrar en el encabezado del módulo de notas
- */
-router.get("/sections/:sectionId/schedule", 
-    verifyToken, 
-    autoVerifyRole,
-    SectionController.getSectionSchedule
-);
+
 
 export default router;

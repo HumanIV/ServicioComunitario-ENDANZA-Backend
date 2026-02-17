@@ -8,14 +8,14 @@ import { db } from "../db/connection.database.js";
 const findAllSections = async (academicYearId = null) => {
     try {
         let query;
-        
+
         if (academicYearId) {
             query = {
                 text: `
                     SELECT 
                         s."Id_seccion" as id,
                         s."nombre_seccion" as section_name,
-                        s."nivel_academico" as grade_level,
+                        'General' as grade_level,
                         s."capacidad" as capacity,
                         s."Id_materia" as subject_id,
                         s."Id_lapso" as period_id,
@@ -39,9 +39,7 @@ const findAllSections = async (academicYearId = null) => {
                                         'classroom_name', au."nombre_aula",
                                         'teacher_id', h."Id_profesor",
                                         'teacher_name', CONCAT(u."nombre", ' ', u."apellido"),
-                                        'teacher_user_id', u."Id_usuario",
-                                        'subject_id', h."Id_materia",
-                                        'subject_name', COALESCE(m2."nombre_materia", 'Sin materia')
+                                        'teacher_user_id', u."Id_usuario"
                                     )
                                     ORDER BY d."Id_dia", b."inicio_bloque"
                                 )
@@ -51,7 +49,6 @@ const findAllSections = async (academicYearId = null) => {
                                 LEFT JOIN "Aula" au ON h."Id_aula" = au."Id_aula"
                                 LEFT JOIN "Profesor" p ON h."Id_profesor" = p."Id_profesor"
                                 LEFT JOIN "Usuario" u ON p."Id_usuario" = u."Id_usuario"
-                                LEFT JOIN "Materia" m2 ON h."Id_materia" = m2."Id_materia"
                                 WHERE h."Id_seccion" = s."Id_seccion"
                             ),
                             '[]'::json
@@ -81,7 +78,7 @@ const findAllSections = async (academicYearId = null) => {
                     SELECT 
                         s."Id_seccion" as id,
                         s."nombre_seccion" as section_name,
-                        s."nivel_academico" as grade_level,
+                        'General' as grade_level,
                         s."capacidad" as capacity,
                         s."Id_materia" as subject_id,
                         s."Id_lapso" as period_id,
@@ -105,9 +102,7 @@ const findAllSections = async (academicYearId = null) => {
                                         'classroom_name', au."nombre_aula",
                                         'teacher_id', h."Id_profesor",
                                         'teacher_name', CONCAT(u."nombre", ' ', u."apellido"),
-                                        'teacher_user_id', u."Id_usuario",
-                                        'subject_id', h."Id_materia",
-                                        'subject_name', COALESCE(m2."nombre_materia", 'Sin materia')
+                                        'teacher_user_id', u."Id_usuario"
                                     )
                                     ORDER BY d."Id_dia", b."inicio_bloque"
                                 )
@@ -117,7 +112,6 @@ const findAllSections = async (academicYearId = null) => {
                                 LEFT JOIN "Aula" au ON h."Id_aula" = au."Id_aula"
                                 LEFT JOIN "Profesor" p ON h."Id_profesor" = p."Id_profesor"
                                 LEFT JOIN "Usuario" u ON p."Id_usuario" = u."Id_usuario"
-                                LEFT JOIN "Materia" m2 ON h."Id_materia" = m2."Id_materia"
                                 WHERE h."Id_seccion" = s."Id_seccion"
                             ),
                             '[]'::json
@@ -140,7 +134,7 @@ const findAllSections = async (academicYearId = null) => {
                 `
             };
         }
-        
+
         const { rows } = await db.query(query.text, query.values || []);
         console.log(`📋 Encontradas ${rows.length} secciones para año ${academicYearId || 'todos'}`);
         return rows;
@@ -157,7 +151,7 @@ const findSectionById = async (id) => {
                 SELECT 
                     s."Id_seccion" as id,
                     s."nombre_seccion" as section_name,
-                    s."nivel_academico" as grade_level,
+                    'General' as grade_level,
                     s."capacidad" as capacity,
                     s."Id_materia" as subject_id,
                     s."Id_lapso" as period_id,
@@ -181,9 +175,7 @@ const findSectionById = async (id) => {
                                     'classroom_name', au."nombre_aula",
                                     'teacher_id', h."Id_profesor",
                                     'teacher_name', CONCAT(u."nombre", ' ', u."apellido"),
-                                    'teacher_user_id', u."Id_usuario",
-                                    'subject_id', h."Id_materia",
-                                    'subject_name', COALESCE(m2."nombre_materia", 'Sin materia')
+                                    'teacher_user_id', u."Id_usuario"
                                 )
                                 ORDER BY d."Id_dia", b."inicio_bloque"
                             )
@@ -193,7 +185,6 @@ const findSectionById = async (id) => {
                             LEFT JOIN "Aula" au ON h."Id_aula" = au."Id_aula"
                             LEFT JOIN "Profesor" p ON h."Id_profesor" = p."Id_profesor"
                             LEFT JOIN "Usuario" u ON p."Id_usuario" = u."Id_usuario"
-                            LEFT JOIN "Materia" m2 ON h."Id_materia" = m2."Id_materia"
                             WHERE h."Id_seccion" = s."Id_seccion"
                         ),
                         '[]'::json
@@ -216,7 +207,7 @@ const findSectionById = async (id) => {
             `,
             values: [id]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows[0];
     } catch (error) {
@@ -232,7 +223,7 @@ const findSectionById = async (id) => {
 const createSection = async (sectionData) => {
     try {
         const { section_name, grade_level, capacity, subject_id, academic_year_id } = sectionData;
-        
+
         console.log('📥 MODEL - Datos recibidos en modelo:', {
             section_name,
             grade_level,  // ← DEBE APARECER AQUÍ
@@ -240,9 +231,9 @@ const createSection = async (sectionData) => {
             subject_id,
             academic_year_id
         });
-        
+
         let finalYearId = academic_year_id;
-        
+
         if (!finalYearId) {
             console.log('⚠️ No se recibió academic_year_id, buscando año activo...');
             const yearResult = await db.query(
@@ -250,54 +241,51 @@ const createSection = async (sectionData) => {
             );
             finalYearId = yearResult.rows[0]?.Id_ano;
         }
-        
+
         if (!finalYearId) {
             throw new Error('No se pudo determinar un año académico válido');
         }
-        
+
         console.log('✅ Año determinado:', finalYearId);
-        
+
         const lapsoResult = await db.query(
             'SELECT "Id_lapso" FROM "Lapso" WHERE "Id_ano" = $1 LIMIT 1',
             [finalYearId]
         );
         const lapsoId = lapsoResult.rows[0]?.Id_lapso || null;
-        
+
         console.log('📅 Lapso asociado:', lapsoId);
-        
+
         const query = {
             text: `
                 INSERT INTO "Seccion" (
                     "nombre_seccion", 
-                    "nivel_academico",
                     "capacidad", 
                     "Id_materia", 
                     "Id_lapso",
                     "Id_ano"
-                ) VALUES ($1, $2, $3, $4, $5, $6)
+                ) VALUES ($1, $2, $3, $4, $5)
                 RETURNING 
                     "Id_seccion" as id,
                     "nombre_seccion" as section_name,
-                    "nivel_academico" as grade_level,
                     "capacidad" as capacity,
                     "Id_materia" as subject_id,
                     "Id_lapso" as period_id,
                     "Id_ano" as academic_year_id
             `,
             values: [
-                section_name, 
-                grade_level || null,
-                capacity || 30, 
-                subject_id, 
-                lapsoId, 
+                section_name,
+                capacity || 30,
+                subject_id,
+                lapsoId,
                 finalYearId
             ]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         console.log('✅ Sección creada con ID:', rows[0].id, 'nivel:', rows[0].grade_level);
         return rows[0];
-        
+
     } catch (error) {
         console.error("❌ Error en schedule.createSection:", error);
         throw error;
@@ -307,28 +295,26 @@ const createSection = async (sectionData) => {
 const updateSection = async (id, sectionData) => {
     try {
         const { section_name, grade_level, capacity, subject_id } = sectionData;
-        
+
         const query = {
             text: `
                 UPDATE "Seccion"
                 SET 
                     "nombre_seccion" = COALESCE($1, "nombre_seccion"),
-                    "nivel_academico" = COALESCE($2, "nivel_academico"),
-                    "capacidad" = COALESCE($3, "capacidad"),
-                    "Id_materia" = COALESCE($4, "Id_materia")
-                WHERE "Id_seccion" = $5
+                    "capacidad" = COALESCE($2, "capacidad"),
+                    "Id_materia" = COALESCE($3, "Id_materia")
+                WHERE "Id_seccion" = $4
                 RETURNING 
                     "Id_seccion" as id,
                     "nombre_seccion" as section_name,
-                    "nivel_academico" as grade_level,
                     "capacidad" as capacity,
                     "Id_materia" as subject_id,
                     "Id_lapso" as period_id,
                     "Id_ano" as academic_year_id
             `,
-            values: [section_name, grade_level, capacity, subject_id, id]
+            values: [section_name, capacity, subject_id, id]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows[0];
     } catch (error) {
@@ -343,48 +329,48 @@ const updateSection = async (id, sectionData) => {
 const deleteSection = async (id) => {
     try {
         console.log(`🗑️ Eliminando sección ${id} y todas sus relaciones...`);
-        
+
         const studentCheck = await db.query(
             'SELECT COUNT(*) as count FROM "Estudiante_Seccion" WHERE "Id_seccion" = $1',
             [id]
         );
-        
+
         if (studentCheck.rows[0].count > 0) {
             throw new Error(`La sección tiene ${studentCheck.rows[0].count} estudiantes asociados. No se puede eliminar.`);
         }
-        
+
         await db.query('BEGIN');
-        
+
         try {
             await db.query('DELETE FROM "Horario" WHERE "Id_seccion" = $1', [id]);
             await db.query('DELETE FROM "Asistencia" WHERE "Id_seccion" = $1', [id]);
             await db.query('DELETE FROM "Boleta_Notas" WHERE "Id_seccion" = $1', [id]);
             await db.query('DELETE FROM "Estructura_Evaluacion" WHERE "Id_seccion" = $1', [id]);
-            
+
             const query = {
                 text: 'DELETE FROM "Seccion" WHERE "Id_seccion" = $1 RETURNING "Id_seccion" as id',
                 values: [id]
             };
-            
+
             const { rows } = await db.query(query.text, query.values);
-            
+
             await db.query('COMMIT');
-            
+
             console.log(`✅ Sección ${id} eliminada exitosamente`);
             return rows[0];
-            
+
         } catch (error) {
             await db.query('ROLLBACK');
             throw error;
         }
-        
+
     } catch (error) {
         console.error("❌ Error en schedule.deleteSection:", error);
-        
+
         if (error.code === '23503') {
             throw new Error('No se puede eliminar la sección porque tiene estudiantes u otras relaciones asociadas.');
         }
-        
+
         throw error;
     }
 };
@@ -426,36 +412,36 @@ const findAllSchedules = async (filters = {}) => {
             LEFT JOIN "Ano_Academico" an ON s."Id_ano" = an."Id_ano"
             WHERE 1=1
         `;
-        
+
         const values = [];
         let paramIndex = 1;
-        
+
         if (filters.academicYearId) {
             queryText += ` AND s."Id_ano" = $${paramIndex}`;
             values.push(filters.academicYearId);
             paramIndex++;
         }
-        
+
         if (filters.sectionId) {
             queryText += ` AND h."Id_seccion" = $${paramIndex}`;
             values.push(filters.sectionId);
             paramIndex++;
         }
-        
+
         if (filters.teacherId) {
             queryText += ` AND h."Id_profesor" = $${paramIndex}`;
             values.push(filters.teacherId);
             paramIndex++;
         }
-        
+
         if (filters.dayId) {
             queryText += ` AND h."Id_dia" = $${paramIndex}`;
             values.push(filters.dayId);
             paramIndex++;
         }
-        
+
         queryText += ` ORDER BY d."Id_dia", b."inicio_bloque"`;
-        
+
         const { rows } = await db.query(queryText, values);
         return rows;
     } catch (error) {
@@ -470,7 +456,7 @@ const findAllSchedules = async (filters = {}) => {
 const createSchedule = async (scheduleData) => {
     try {
         const { section_id, classroom_id, teacher_id, block_id, day_id, subject_id } = scheduleData;
-        
+
         console.log('📥 MODEL createSchedule - Datos recibidos:', {
             section_id,
             classroom_id,
@@ -485,13 +471,13 @@ const createSchedule = async (scheduleData) => {
             'SELECT "Id_seccion", "Id_ano" FROM "Seccion" WHERE "Id_seccion" = $1',
             [section_id]
         );
-        
+
         if (sectionCheck.rows.length === 0) {
             throw new Error(`La sección ${section_id} no existe`);
         }
-        
+
         const academicYearId = sectionCheck.rows[0].Id_ano;
-        
+
         // PASO 2: Obtener el Id_profesor a partir del Id_usuario
         const profesorQuery = await db.query(
             `SELECT "Id_profesor" 
@@ -499,14 +485,14 @@ const createSchedule = async (scheduleData) => {
              WHERE "Id_usuario" = $1`,
             [teacher_id]
         );
-        
+
         if (profesorQuery.rows.length === 0) {
             throw new Error(`El usuario ${teacher_id} no tiene un registro en la tabla Profesor. Debe ser creado como docente primero.`);
         }
-        
+
         const profesorId = profesorQuery.rows[0].Id_profesor;
         console.log(`✅ Profesor encontrado: Usuario ${teacher_id} → Profesor ID ${profesorId}`);
-        
+
         // PASO 3: Verificar disponibilidad con el profesorId correcto
         const isAvailable = await checkAvailability({
             academicYearId: academicYearId,
@@ -516,11 +502,11 @@ const createSchedule = async (scheduleData) => {
             teacherId: profesorId,
             excludeScheduleId: null
         });
-        
+
         if (!isAvailable.available) {
             throw new Error(isAvailable.message || 'Conflicto de horario');
         }
-        
+
         // PASO 4: Insertar el horario CON LA MATERIA
         const query = {
             text: `
@@ -529,25 +515,23 @@ const createSchedule = async (scheduleData) => {
                     "Id_aula", 
                     "Id_profesor", 
                     "Id_bloque", 
-                    "Id_dia",
-                    "Id_materia"
-                ) VALUES ($1, $2, $3, $4, $5, $6)
+                    "Id_dia"
+                ) VALUES ($1, $2, $3, $4, $5)
                 RETURNING 
                     "Id_horario" as id,
                     "Id_seccion" as section_id,
                     "Id_aula" as classroom_id,
                     "Id_profesor" as teacher_id,
                     "Id_bloque" as block_id,
-                    "Id_dia" as day_id,
-                    "Id_materia" as subject_id
+                    "Id_dia" as day_id
             `,
-            values: [section_id, classroom_id, profesorId, block_id, day_id, subject_id]
+            values: [section_id, classroom_id, profesorId, block_id, day_id]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         console.log('✅ Horario creado:', rows[0]);
         return rows[0];
-        
+
     } catch (error) {
         console.error("❌ Error en schedule.createSchedule:", error);
         throw error;
@@ -557,7 +541,7 @@ const createSchedule = async (scheduleData) => {
 const updateSchedule = async (id, scheduleData) => {
     try {
         const { classroom_id, teacher_id, block_id, day_id } = scheduleData;
-        
+
         const currentSchedule = await db.query(
             `SELECT h.*, s."Id_ano" as academic_year_id
              FROM "Horario" h
@@ -565,11 +549,11 @@ const updateSchedule = async (id, scheduleData) => {
              WHERE h."Id_horario" = $1`,
             [id]
         );
-        
+
         if (currentSchedule.rows.length === 0) {
             throw new Error('Horario no encontrado');
         }
-        
+
         const isAvailable = await checkAvailability({
             academicYearId: currentSchedule.rows[0].academic_year_id,
             dayId: day_id,
@@ -578,11 +562,11 @@ const updateSchedule = async (id, scheduleData) => {
             teacherId: teacher_id,
             excludeScheduleId: id
         });
-        
+
         if (!isAvailable.available) {
             throw new Error(isAvailable.message || 'Conflicto de horario');
         }
-        
+
         const query = {
             text: `
                 UPDATE "Horario"
@@ -602,7 +586,7 @@ const updateSchedule = async (id, scheduleData) => {
             `,
             values: [classroom_id, teacher_id, block_id, day_id, id]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows[0];
     } catch (error) {
@@ -617,7 +601,7 @@ const deleteSchedule = async (id) => {
             text: 'DELETE FROM "Horario" WHERE "Id_horario" = $1 RETURNING "Id_horario" as id',
             values: [id]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows[0];
     } catch (error) {
@@ -655,16 +639,16 @@ const checkAvailability = async ({ academicYearId, dayId, blockId, classroomId, 
               AND h."Id_bloque" = $3
               AND s."Id_ano" = $4
         `;
-        
+
         const classroomValues = [classroomId, dayId, blockId, academicYearId];
-        
+
         if (excludeScheduleId) {
             classroomQuery += ` AND h."Id_horario" != $5`;
             classroomValues.push(excludeScheduleId);
         }
-        
+
         const classroomConflict = await db.query(classroomQuery, classroomValues);
-        
+
         if (classroomConflict.rows.length > 0) {
             return {
                 available: false,
@@ -676,7 +660,7 @@ const checkAvailability = async ({ academicYearId, dayId, blockId, classroomId, 
                 }
             };
         }
-        
+
         // 2. Verificar disponibilidad del profesor
         let teacherQuery = `
             SELECT 
@@ -691,16 +675,16 @@ const checkAvailability = async ({ academicYearId, dayId, blockId, classroomId, 
               AND h."Id_bloque" = $3
               AND s."Id_ano" = $4
         `;
-        
+
         const teacherValues = [teacherId, dayId, blockId, academicYearId];
-        
+
         if (excludeScheduleId) {
             teacherQuery += ` AND h."Id_horario" != $5`;
             teacherValues.push(excludeScheduleId);
         }
-        
+
         const teacherConflict = await db.query(teacherQuery, teacherValues);
-        
+
         if (teacherConflict.rows.length > 0) {
             return {
                 available: false,
@@ -712,10 +696,10 @@ const checkAvailability = async ({ academicYearId, dayId, blockId, classroomId, 
                 }
             };
         }
-        
+
         console.log('✅ Disponibilidad confirmada');
         return { available: true };
-        
+
     } catch (error) {
         console.error("❌ Error en schedule.checkAvailability:", error);
         throw error;
@@ -738,7 +722,7 @@ const getAllClassrooms = async () => {
                 ORDER BY "nombre_aula"
             `
         };
-        
+
         const { rows } = await db.query(query.text);
         return rows;
     } catch (error) {
@@ -758,7 +742,7 @@ const getAllDays = async () => {
                 ORDER BY "Id_dia"
             `
         };
-        
+
         const { rows } = await db.query(query.text);
         return rows;
     } catch (error) {
@@ -780,7 +764,7 @@ const getAllBlocks = async () => {
                 ORDER BY "inicio_bloque"
             `
         };
-        
+
         const { rows } = await db.query(query.text);
         return rows;
     } catch (error) {
@@ -800,16 +784,16 @@ export const ScheduleModel = {
     createSection,
     updateSection,
     deleteSection,
-    
+
     // Horarios
     findAllSchedules,
     createSchedule,
     updateSchedule,
     deleteSchedule,
-    
+
     // Validación
     checkAvailability,
-    
+
     // Catálogos
     getAllClassrooms,
     getAllDays,

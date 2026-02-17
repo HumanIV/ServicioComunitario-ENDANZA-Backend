@@ -9,6 +9,9 @@ const router = express.Router();
 
 router.get("/", verifyToken, verifyAdmin, autoVerifyRole, BoletinController.getBoletines);
 router.put("/:id", verifyToken, verifyAdmin, autoVerifyRole, BoletinController.updateBoletin);
+// Generar boletines para estudiantes
+router.post("/generar", verifyToken, verifyAdmin, autoVerifyRole, BoletinController.generarBoletines);
+
 router.post("/habilitar-todos", verifyToken, verifyAdmin, autoVerifyRole, BoletinController.habilitarTodos);
 
 export default router;

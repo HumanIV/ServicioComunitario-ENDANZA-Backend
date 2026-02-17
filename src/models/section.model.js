@@ -16,17 +16,17 @@ const findAll = async (academicYearId = null) => {
           m."nombre_materia" as subject_name,
           s."Id_lapso" as period_id,
           l."nombre_lapso" as period_name,
-          l."Id_ano" as academic_year_id,
+          s."Id_ano" as academic_year_id,
           a."nombre_ano" as academic_year_name
         FROM "Seccion" s
         LEFT JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
         LEFT JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
-        LEFT JOIN "Ano_Academico" a ON l."Id_ano" = a."Id_ano"
+        LEFT JOIN "Ano_Academico" a ON s."Id_ano" = a."Id_ano"
       `
     };
 
     if (academicYearId) {
-      query.text += ` WHERE l."Id_ano" = $1`;
+      query.text += ` WHERE s."Id_ano" = $1`;
       query.values = [academicYearId];
     }
 
@@ -73,7 +73,7 @@ const findById = async (id) => {
 const create = async (sectionData) => {
   try {
     const { nombre_seccion, capacidad, Id_materia, Id_lapso } = sectionData;
-    
+
     const query = {
       text: `
         INSERT INTO "Seccion" ("nombre_seccion", "capacidad", "Id_materia", "Id_lapso")
@@ -87,7 +87,7 @@ const create = async (sectionData) => {
       `,
       values: [nombre_seccion, capacidad, Id_materia, Id_lapso]
     };
-    
+
     const { rows } = await db.query(query.text, query.values);
     return rows[0];
   } catch (error) {
@@ -99,7 +99,7 @@ const create = async (sectionData) => {
 const update = async (id, sectionData) => {
   try {
     const { nombre_seccion, capacidad, Id_materia, Id_lapso } = sectionData;
-    
+
     const query = {
       text: `
         UPDATE "Seccion"
@@ -118,7 +118,7 @@ const update = async (id, sectionData) => {
       `,
       values: [nombre_seccion, capacidad, Id_materia, Id_lapso, id]
     };
-    
+
     const { rows } = await db.query(query.text, query.values);
     return rows[0];
   } catch (error) {
@@ -186,7 +186,7 @@ const findSchedulesBySectionId = async (sectionId) => {
 const addSchedule = async (sectionId, scheduleData) => {
   try {
     const { Id_aula, Id_profesor, Id_bloque, Id_dia } = scheduleData;
-    
+
     const query = {
       text: `
         INSERT INTO "Horario" ("Id_seccion", "Id_aula", "Id_profesor", "Id_bloque", "Id_dia")
@@ -201,7 +201,7 @@ const addSchedule = async (sectionId, scheduleData) => {
       `,
       values: [sectionId, Id_aula, Id_profesor, Id_bloque, Id_dia]
     };
-    
+
     const { rows } = await db.query(query.text, query.values);
     return rows[0];
   } catch (error) {
@@ -228,13 +228,13 @@ const removeSchedule = async (scheduleId) => {
 // VERIFICAR DISPONIBILIDAD DE AULA
 // ============================================
 
-const checkClassroomAvailability = async ({ 
-  academicYearId, 
-  day, 
-  startTime, 
-  endTime, 
+const checkClassroomAvailability = async ({
+  academicYearId,
+  day,
+  startTime,
+  endTime,
   classroom,
-  excludeSectionId 
+  excludeSectionId
 }) => {
   try {
     // Convertir día a ID
@@ -242,7 +242,7 @@ const checkClassroomAvailability = async ({
       'LUNES': 1, 'MARTES': 2, 'MIÉRCOLES': 3, 'JUEVES': 4, 'VIERNES': 5
     };
     const dayId = dayMap[day];
-    
+
     if (!dayId) {
       return { available: false, error: "Día inválido" };
     }
@@ -310,6 +310,62 @@ const checkClassroomAvailability = async ({
   }
 };
 
+
+const getStudentsBySection = async (sectionId) => {
+  try {
+    const query = {
+      text: `
+                SELECT 
+                    e."Id_estudiante" as id,
+                    e."nombre" as first_name,
+                    e."apellido" as last_name,
+                    e."cedula" as dni,
+                    e."fecha_nacimiento" as birth_date
+                FROM "Estudiante_Seccion" es
+                JOIN "Estudiante" e ON es."Id_estudiante" = e."Id_estudiante"
+                WHERE es."Id_seccion" = $1
+                ORDER BY e."apellido", e."nombre"
+            `,
+      values: [sectionId]
+    };
+    const { rows } = await db.query(query.text, query.values);
+    return rows;
+  } catch (error) {
+    console.error("Error en getStudentsBySection:", error);
+    throw error;
+  }
+};
+
+const getEvaluationStructure = async (sectionId) => {
+  try {
+    // Obtenemos la estructura de evaluación definida para esta sección
+    // Si no existe, podríamos devolver una por defecto o vacía
+    const query = {
+      text: `
+                SELECT 
+                    ee."Id_estructura_evaluacion" as id,
+      ee."numero_evaluacion" as numero,
+      ee."porcentaje_peso" as peso,
+      te."nombre_evaluacion" as tipo
+                FROM "Estructura_Evaluacion" ee
+                LEFT JOIN "Tipo_Evaluacion" te ON ee."Id_tipo_evaluacion" = te."Id_tipo_evaluacion"
+                WHERE ee."Id_seccion" = $1
+                ORDER BY ee."numero_evaluacion"
+            `,
+      values: [sectionId]
+    };
+    const { rows } = await db.query(query.text, query.values);
+
+    // Si no hay estructura en BD, retornamos null para que el frontend use el default o muestre aviso
+    if (rows.length === 0) return null;
+
+    return rows;
+  } catch (error) {
+    console.error("Error en getEvaluationStructure:", error);
+    throw error;
+  }
+};
+
 export const SectionModel = {
   findAll,
   findById,
@@ -319,5 +375,7 @@ export const SectionModel = {
   findSchedulesBySectionId,
   addSchedule,
   removeSchedule,
-  checkClassroomAvailability
+  checkClassroomAvailability,
+  getStudentsBySection,
+  getEvaluationStructure
 };

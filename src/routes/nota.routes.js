@@ -13,4 +13,10 @@ router.put("/:id/rechazar", verifyToken, verifyAdmin, autoVerifyRole, NotaContro
 router.post("/aprobar-todas", verifyToken, verifyAdmin, autoVerifyRole, NotaController.aprobarTodas);
 router.get("/verificar-pendientes", verifyToken, verifyAdmin, autoVerifyRole, NotaController.verificarPendientes);
 
+// Rutas para Docentes
+router.get("/docente/carga-academica", verifyToken, autoVerifyRole, NotaController.getTeacherAllocations);
+router.get("/docente/estudiantes/:sectionId", verifyToken, autoVerifyRole, NotaController.getSectionStudents);
+router.post("/docente/guardar-competencia", verifyToken, autoVerifyRole, NotaController.saveCompetenciaGrade);
+router.post("/docente/guardar-lote", verifyToken, autoVerifyRole, NotaController.saveGradesBatch);
+
 export default router;
