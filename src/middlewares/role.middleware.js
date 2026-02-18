@@ -12,9 +12,21 @@ export const roleMap = {
 const routePermissions = {
   // Rutas de administración (solo admin)
   '/api/users/list': ['admin'],
+
+  // ============================================
+  // 🟢 RUTAS DE PERFIL Y SEGURIDAD (TODOS)
+  // ============================================
+  '/api/users/profile': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/users/profile/security': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/users/change-password': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/users/change-password/security': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/users/logout': ['admin', 'docente', 'representante', 'estudiante'],
+
+  // Rutas de administración de usuarios (solo admin)
   '/api/users/activate/:id': ['admin'],
   '/api/users/deactivate/:id': ['admin'],
   '/api/users/:id': ['admin'],
+  '/api/users/:id/role': ['admin'],
 
   // ============================================
   // 🟢 RUTAS DE CONFIGURACIÓN (AÑOS ACADÉMICOS)
@@ -35,7 +47,7 @@ const routePermissions = {
   '/api/teachers/:id/my-students': ['docente'],
 
   // ============================================
-  // 🟢 RUTAS DE SECTIONS/HORARIOS - AGREGADAS 🟢
+  // 🟢 RUTAS DE SECTIONS/HORARIOS
   // ============================================
   '/api/sections': ['admin', 'docente'],
   '/api/sections/*': ['admin', 'docente'],
@@ -48,10 +60,24 @@ const routePermissions = {
   '/api/schedules/check-availability': ['admin', 'docente'],
 
   // ============================================
-  // 🟢 RUTAS EXISTENTES
+  // 🟢 RUTAS DE ESTUDIANTES
   // ============================================
+  // Rutas específicas para representantes PRIMERO
+  '/api/students/mis-estudiantes': ['admin', 'representante'],
+  '/api/students/:id/representante': ['admin', 'representante'],
+  '/api/students/:id/boletines': ['admin', 'representante'],
+  '/api/students/:id/horario-grado': ['admin', 'representante'],
+  '/api/students/:id/seccion-actual': ['admin', 'representante', 'docente'],
+
+  // Rutas generales
   '/api/students/list': ['admin', 'docente'],
+  '/api/students/search': ['admin', 'docente'],
+  '/api/students/:id': ['admin', 'docente'],
   '/api/students/*': ['admin', 'docente'],
+
+  // ============================================
+  // 🟢 OTRAS RUTAS
+  // ============================================
   '/api/inscripcion': ['admin'],
   '/api/inscripcion/*': ['admin'],
   '/api/aulas': ['admin'],
