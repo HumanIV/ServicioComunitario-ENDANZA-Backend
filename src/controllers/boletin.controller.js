@@ -120,7 +120,7 @@ const incrementarDescarga = async (req, res) => {
 
 const generarBoletines = async (req, res) => {
   try {
-    const { studentIds, academicYearId } = req.body;
+    const { studentIds, academicYearId, gradeId } = req.body;
 
     if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
       return res.status(400).json({
@@ -138,7 +138,7 @@ const generarBoletines = async (req, res) => {
 
     const resultados = [];
     for (const studentId of studentIds) {
-      const resultado = await BoletinModel.generarBoletin(studentId, academicYearId);
+      const resultado = await BoletinModel.generarBoletin(studentId, academicYearId, gradeId);
       resultados.push(resultado);
     }
 

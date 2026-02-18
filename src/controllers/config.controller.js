@@ -11,7 +11,7 @@ import { ConfigModel } from "../models/config.model.js";
 const getAcademicYears = async (req, res) => {
   try {
     const years = await ConfigModel.findAllAcademicYears();
-    
+
     return res.json({
       ok: true,
       data: years,
@@ -29,7 +29,7 @@ const getAcademicYears = async (req, res) => {
 const getActiveAcademicYear = async (req, res) => {
   try {
     const activeYear = await ConfigModel.findActiveAcademicYear();
-    
+
     return res.json({
       ok: true,
       data: activeYear,
@@ -65,7 +65,7 @@ const createAcademicYear = async (req, res) => {
     }
 
     const [startYear, endYear] = name.split('-');
-    
+
     // Verificar que el año de inicio sea menor que el de fin
     if (parseInt(startYear) >= parseInt(endYear)) {
       return res.status(400).json({
@@ -175,6 +175,37 @@ const updateEnrollmentPeriod = async (req, res) => {
 };
 
 // ============================================
+// LAPSOS
+// ============================================
+
+const getLapsosByYear = async (req, res) => {
+  try {
+    const { yearId } = req.params;
+
+    if (!yearId) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El ID del año es requerido",
+      });
+    }
+
+    const lapsos = await ConfigModel.findLapsosByYearId(yearId);
+
+    return res.json({
+      ok: true,
+      data: lapsos,
+    });
+  } catch (error) {
+    console.error("Error en getLapsosByYear:", error);
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al obtener lapsos",
+      error: error.message,
+    });
+  }
+};
+
+// ============================================
 // PERÍODO DE SUBIDA DE NOTAS
 // ============================================
 
@@ -261,12 +292,15 @@ export const ConfigController = {
   getAcademicYears,
   getActiveAcademicYear,
   createAcademicYear,
-  
+
   // Período de inscripción
   getEnrollmentPeriod,
   updateEnrollmentPeriod,
-  
+
   // Período de subida de notas
   getGradesPeriod,
   updateGradesPeriod,
+
+  // Lapsos
+  getLapsosByYear,
 };

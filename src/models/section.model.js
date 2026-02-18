@@ -17,11 +17,16 @@ const findAll = async (academicYearId = null) => {
           s."Id_lapso" as period_id,
           l."nombre_lapso" as period_name,
           s."Id_ano" as academic_year_id,
-          a."nombre_ano" as academic_year_name
+          a."nombre_ano" as academic_year_name,
+          g."Id_grado" as grade_id,
+          g."nombre_grado" as grade_name,
+          COUNT(DISTINCT es."Id_estudiante") as student_count
         FROM "Seccion" s
         LEFT JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
+        LEFT JOIN "Grado" g ON m."ano_materia" = g."Id_grado"
         LEFT JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
         LEFT JOIN "Ano_Academico" a ON s."Id_ano" = a."Id_ano"
+        LEFT JOIN "Estudiante_Seccion" es ON s."Id_seccion" = es."Id_seccion"
       `
     };
 
@@ -30,7 +35,21 @@ const findAll = async (academicYearId = null) => {
       query.values = [academicYearId];
     }
 
-    query.text += ` ORDER BY s."Id_seccion"`;
+    query.text += ` 
+      GROUP BY 
+        s."Id_seccion", 
+        s."nombre_seccion", 
+        s."capacidad", 
+        s."Id_materia", 
+        m."nombre_materia", 
+        s."Id_lapso", 
+        l."nombre_lapso", 
+        s."Id_ano", 
+        a."nombre_ano", 
+        g."Id_grado", 
+        g."nombre_grado"
+      ORDER BY g."nombre_grado", s."nombre_seccion"
+    `;
 
     const { rows } = await db.query(query.text, query.values || []);
     return rows;

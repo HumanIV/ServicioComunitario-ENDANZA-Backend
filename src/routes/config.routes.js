@@ -16,26 +16,24 @@ const router = express.Router();
 // RUTAS PARA AÑOS ACADÉMICOS
 // ============================================
 router.get(
-  "/academic-years", 
-  verifyToken, 
-  verifyAdmin, 
-  autoVerifyRole, 
+  "/academic-years",
+  verifyToken,
+  autoVerifyRole,
   ConfigController.getAcademicYears
 );
 
 router.get(
-  "/academic-years/active", 
-  verifyToken, 
-  verifyAdmin, 
-  autoVerifyRole, 
+  "/academic-years/active",
+  verifyToken,
+  autoVerifyRole,
   ConfigController.getActiveAcademicYear
 );
 
 router.post(
-  "/academic-years", 
-  verifyToken, 
-  verifyAdmin, 
-  autoVerifyRole, 
+  "/academic-years",
+  verifyToken,
+  verifyAdmin,
+  autoVerifyRole,
   ConfigController.createAcademicYear
 );
 
@@ -43,37 +41,45 @@ router.post(
 // RUTAS PARA PERÍODO DE INSCRIPCIÓN
 // ============================================
 router.get(
-  "/enrollment-period/:yearId", 
-  verifyToken, 
-  verifyAdmin, 
-  autoVerifyRole, 
+  "/enrollment-period/:yearId",
+  verifyToken,
+  verifyAdmin,
+  autoVerifyRole,
   ConfigController.getEnrollmentPeriod
 );
 
 router.put(
-  "/enrollment-period/:yearId", 
-  verifyToken, 
-  verifyAdmin, 
-  autoVerifyRole, 
+  "/enrollment-period/:yearId",
+  verifyToken,
+  verifyAdmin,
+  autoVerifyRole,
   ConfigController.updateEnrollmentPeriod
+);
+
+// ============================================
+// RUTAS PARA LAPSOS
+// ============================================
+router.get(
+  "/academic-years/:yearId/lapsos",
+  verifyToken,
+  autoVerifyRole,
+  ConfigController.getLapsosByYear
 );
 
 // ============================================
 // RUTAS PARA PERÍODO DE SUBIDA DE NOTAS
 // ============================================
 router.get(
-  "/grades-period/:yearId", 
-  verifyToken, 
-  verifyAdmin, 
-  autoVerifyRole, 
+  "/grades-period/:yearId",
+  verifyToken,
   ConfigController.getGradesPeriod
 );
 
 router.put(
-  "/grades-period/:yearId", 
-  verifyToken, 
-  verifyAdmin, 
-  autoVerifyRole, 
+  "/grades-period/:yearId",
+  verifyToken,
+  verifyAdmin,
+  autoVerifyRole,
   ConfigController.updateGradesPeriod
 );
 

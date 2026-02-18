@@ -78,7 +78,7 @@ const createAcademicYear = async (name, startDate, endDate) => {
         `,
         values: [name, startDate, endDate],
       };
-      
+
       const { rows } = await db.query(insertQuery.text, insertQuery.values);
       const newYear = rows[0];
 
@@ -144,7 +144,7 @@ const updateEnrollmentPeriod = async (yearId, { fechaInicio, fechaFin, activo })
       values: [yearId]
     };
     const checkResult = await db.query(checkQuery.text, checkQuery.values);
-    
+
     if (checkResult.rows.length === 0) {
       // Si no existe, insertar
       const insertQuery = {
@@ -189,6 +189,33 @@ const updateEnrollmentPeriod = async (yearId, { fechaInicio, fechaFin, activo })
 };
 
 // ============================================
+// LAPSOS
+// ============================================
+
+const findLapsosByYearId = async (yearId) => {
+  try {
+    const query = {
+      text: `
+        SELECT 
+          "Id_lapso" as id,
+          "nombre_lapso" as name,
+          "inicio_lapso" as start_date,
+          "fin_lapso" as end_date
+        FROM public."Lapso"
+        WHERE "Id_ano" = $1
+        ORDER BY "Id_lapso"
+      `,
+      values: [yearId],
+    };
+    const { rows } = await db.query(query.text, query.values);
+    return rows;
+  } catch (error) {
+    console.error("Error en findLapsosByYearId:", error);
+    throw error;
+  }
+};
+
+// ============================================
 // PERÍODO DE SUBIDA DE NOTAS
 // ============================================
 
@@ -221,7 +248,7 @@ const updateGradesPeriod = async (yearId, { fechaInicio, fechaFin, activo }) => 
       values: [yearId]
     };
     const checkResult = await db.query(checkQuery.text, checkQuery.values);
-    
+
     if (checkResult.rows.length === 0) {
       // Si no existe, insertar
       const insertQuery = {
@@ -273,11 +300,14 @@ export const ConfigModel = {
   findAllAcademicYears,
   findActiveAcademicYear,
   createAcademicYear,
-  
+
   // Período de inscripción
   findEnrollmentPeriodByYearId,
   updateEnrollmentPeriod,
-  
+
+  // Lapsos
+  findLapsosByYearId,
+
   // Período de subida de notas
   findGradesPeriodByYearId,
   updateGradesPeriod,

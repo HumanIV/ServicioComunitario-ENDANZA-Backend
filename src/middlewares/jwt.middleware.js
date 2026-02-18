@@ -8,13 +8,13 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "danza-refresh-secr
 // Función helper para verificar estado - EXPORTADA
 export const isUserActive = (user) => {
   if (!user || !user.is_active) return false;
-  
+
   // Normalizar el estado: convertir a minúsculas, quitar espacios
   const normalizedStatus = String(user.is_active || '')
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '');
-  
+
   // Aceptar varias formas de "activo"
   const activeStatuses = ['activo', 'active', 'activado', 'enabled', 'true', '1', 'yes', 'sí'];
   return activeStatuses.includes(normalizedStatus);
@@ -59,7 +59,7 @@ export const verifyToken = async (req, res, next) => {
 
       // Verificar que el usuario existe y está activo
       console.log("🔍 MIDDLEWARE - Buscando usuario en BD...");
-      const user = await UserModel.findOneById(decoded.userId);
+      const user = await UserModel.findOneById(decoded.id || decoded.userId);
 
       if (!user) {
         console.log("❌ MIDDLEWARE - Usuario no encontrado en BD");
@@ -87,7 +87,7 @@ export const verifyToken = async (req, res, next) => {
 
       // Agregar información del usuario al request - CORREGIDO
       req.user = {
-        userId: decoded.userId,
+        userId: decoded.userId || decoded.id || user.id,
         username: decoded.username,
         Id_rol: decoded.Id_rol, // CORREGIDO: Usar Id_rol
         nombre: decoded.nombre || user.nombre,

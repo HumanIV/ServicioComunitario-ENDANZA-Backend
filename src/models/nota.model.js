@@ -11,24 +11,28 @@ const findPendientesByYearId = async (academicYearId) => {
     const query = {
       text: `
         SELECT 
-          cn."Id_nota" as id,
+          s."Id_seccion" as id,
           u."nombre" || ' ' || u."apellido" as profesor,
           m."nombre_materia" as curso,
+          g."nombre_grado" || ' ' || s."nombre_seccion" as seccion,
           COUNT(DISTINCT cn."Id_estudiante") as estudiantes,
+          COUNT(cn."Id_nota") as notas_count,
+          MAX(cn."actualizado_en") as fecha,
           'pendiente' as estado
         FROM "Carga_Nota" cn
         JOIN "Estructura_Evaluacion" ee ON cn."Id_estructura_evaluacion" = ee."Id_estructura_evaluacion"
         JOIN "Seccion" s ON ee."Id_seccion" = s."Id_seccion"
         JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
         JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
+        JOIN "Grado" g ON m."ano_materia" = g."Id_grado"
         -- Relación con profesor a través de Horario
         JOIN "Horario" h ON s."Id_seccion" = h."Id_seccion"
         JOIN "Profesor" p ON h."Id_profesor" = p."Id_profesor"
         JOIN "Usuario" u ON p."Id_usuario" = u."Id_usuario"
         WHERE l."Id_ano" = $1
           AND cn."esta_formalizada" = false
-        GROUP BY cn."Id_nota", u."nombre", u."apellido", m."nombre_materia"
-        ORDER BY cn."Id_nota" DESC
+        GROUP BY s."Id_seccion", u."nombre", u."apellido", m."nombre_materia", g."nombre_grado", s."nombre_seccion"
+        ORDER BY u."apellido", m."nombre_materia"
       `,
       values: [academicYearId]
     };
@@ -40,39 +44,51 @@ const findPendientesByYearId = async (academicYearId) => {
   }
 };
 
-const aprobar = async (notaId) => {
+const aprobar = async (sectionId) => {
   try {
+    // Aprobar todas las notas pendientes de una sección
     const query = {
       text: `
         UPDATE "Carga_Nota"
         SET "esta_formalizada" = true
-        WHERE "Id_nota" = $1
+        WHERE "esta_formalizada" = false
+          AND "Id_estructura_evaluacion" IN (
+            SELECT "Id_estructura_evaluacion"
+            FROM "Estructura_Evaluacion"
+            WHERE "Id_seccion" = $1
+          )
         RETURNING "Id_nota" as id
       `,
-      values: [notaId]
+      values: [sectionId]
     };
     const { rows } = await db.query(query.text, query.values);
-    return rows[0];
+    return { aprobadas: rows.length, ids: rows };
   } catch (error) {
-    console.error("Error en aprobar nota:", error);
+    console.error("Error en aprobar notas de sección:", error);
     throw error;
   }
 };
 
-const rechazar = async (notaId) => {
+const rechazar = async (sectionId) => {
   try {
+    // Rechazar (eliminar) todas las notas pendientes de una sección
     const query = {
       text: `
         DELETE FROM "Carga_Nota"
-        WHERE "Id_nota" = $1
+        WHERE "esta_formalizada" = false
+          AND "Id_estructura_evaluacion" IN (
+            SELECT "Id_estructura_evaluacion"
+            FROM "Estructura_Evaluacion"
+            WHERE "Id_seccion" = $1
+          )
         RETURNING "Id_nota" as id
       `,
-      values: [notaId]
+      values: [sectionId]
     };
     const { rows } = await db.query(query.text, query.values);
-    return rows[0];
+    return { rechazadas: rows.length, ids: rows };
   } catch (error) {
-    console.error("Error en rechazar nota:", error);
+    console.error("Error en rechazar notas de sección:", error);
     throw error;
   }
 };
@@ -83,19 +99,20 @@ const aprobarTodas = async (academicYearId) => {
       text: `
         UPDATE "Carga_Nota"
         SET "esta_formalizada" = true
-        WHERE "Id_estructura_evaluacion" IN (
+        WHERE "esta_formalizada" = false
+          AND "Id_estructura_evaluacion" IN (
           SELECT ee."Id_estructura_evaluacion"
           FROM "Estructura_Evaluacion" ee
           JOIN "Seccion" s ON ee."Id_seccion" = s."Id_seccion"
           JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
           WHERE l."Id_ano" = $1
         )
-        RETURNING COUNT(*) as actualizadas
+        RETURNING "Id_nota" as id
       `,
       values: [academicYearId]
     };
     const { rows } = await db.query(query.text, query.values);
-    return rows[0];
+    return { actualizadas: rows.length };
   } catch (error) {
     console.error("Error en aprobarTodas:", error);
     throw error;
@@ -137,12 +154,22 @@ const findTeacherAllocations = async (teacherUserId, academicYearId) => {
           g."nombre_grado" || ' ' || s."nombre_seccion" as section_name,
           m."nombre_materia" as subject,
           m."Id_materia" as subject_id,
+          g."Id_grado" as grade_id,
           l."nombre_lapso" as lapse,
           l."Id_lapso" as lapse_id,
           a."nombre_ano" as academic_year,
-          count(es."Id_estudiante") as student_count
+          count(DISTINCT es."Id_estudiante") as student_count,
+          json_agg(
+            json_build_object(
+              'day_name', d."nombre_dia",
+              'start_time', bh."inicio_bloque",
+              'end_time', bh."fin_bloque"
+            )
+          ) as schedules
         FROM "Profesor" p
         JOIN "Horario" h ON p."Id_profesor" = h."Id_profesor"
+        JOIN "Dia" d ON h."Id_dia" = d."Id_dia"
+        JOIN "Bloque_Horario" bh ON h."Id_bloque" = bh."Id_bloque"
         JOIN "Seccion" s ON h."Id_seccion" = s."Id_seccion"
         JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
         JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
@@ -151,7 +178,7 @@ const findTeacherAllocations = async (teacherUserId, academicYearId) => {
         JOIN "Grado" g ON m."ano_materia" = g."Id_grado"
         WHERE p."Id_usuario" = $1 
           AND ($2::int IS NULL OR a."Id_ano" = $2::int)
-        GROUP BY s."Id_seccion", g."nombre_grado", s."nombre_seccion", m."nombre_materia", m."Id_materia", l."nombre_lapso", l."Id_lapso", a."nombre_ano"
+        GROUP BY s."Id_seccion", g."nombre_grado", s."nombre_seccion", m."nombre_materia", m."Id_materia", l."nombre_lapso", l."Id_lapso", a."nombre_ano", g."Id_grado"
         ORDER BY l."Id_lapso", m."nombre_materia"
       `,
       values: [teacherUserId, academicYearId]

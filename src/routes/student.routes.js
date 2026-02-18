@@ -10,8 +10,8 @@ const router = express.Router();
 // RUTAS PARA ESTUDIANTES
 // ============================================
 
-// Todas las rutas requieren autenticación y rol de admin/superroot
-router.get("/", verifyToken, verifyAdmin, autoVerifyRole, StudentController.listStudents);
+// Listar estudiantes: admin y docentes pueden ver (docentes ven los de sus secciones)
+router.get("/", verifyToken, StudentController.listStudents);
 router.get("/search", verifyToken, verifyAdmin, autoVerifyRole, StudentController.searchStudents);
 router.get("/:id", verifyToken, verifyAdmin, autoVerifyRole, StudentController.getStudent);
 router.post("/", verifyToken, verifyAdmin, autoVerifyRole, StudentController.createStudent);

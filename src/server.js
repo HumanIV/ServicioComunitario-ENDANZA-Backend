@@ -8,17 +8,17 @@ const PORT = process.env.PORT || 3001;
 const startServer = async () => {
   try {
     console.log("🔍 Iniciando servidor...");
-    
+
     // Probar conexión a la base de datos
     const dbConnected = await testConnection();
-    
+
     if (!dbConnected) {
       console.error("❌ No se pudo conectar a la base de datos. Verifica la configuración.");
       console.log("   ⏳ El servidor se intentará iniciar, pero las rutas de usuarios fallarán.");
     } else {
       console.log("✅ PostgreSQL conectado correctamente");
     }
-    
+
     // Iniciar servidor
     app.listen(PORT, () => {
       console.log(`\n🚀 Servidor iniciado en: http://localhost:${PORT}`);
@@ -30,13 +30,13 @@ const startServer = async () => {
       console.log("🔗 GET    /api/health");
       console.log("\n🌍 Frontend: ${process.env.FRONTEND_URL || 'http://localhost:5173'}");
       console.log(`📁 Entorno: ${process.env.NODE_ENV || 'development'}`);
-      
+
       if (!dbConnected) {
         console.warn("\n⚠️  ADVERTENCIA: El servidor está corriendo sin conexión a la base de datos.");
         console.warn("   Las rutas de usuarios no funcionarán correctamente.");
       }
     });
-    
+
   } catch (error) {
     console.error("❌ Error crítico al iniciar el servidor:", error);
     process.exit(1);
@@ -64,4 +64,5 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Iniciar el servidor
-startServer();
+startServer().catch(err => console.error("Fatal Error:", err));
+// Server Restart Triggered by AI fix
