@@ -379,6 +379,60 @@ const listBlocks = async (req, res) => {
     }
 };
 
+
+
+
+
+
+const getSectionSchedules = async (req, res) => {
+    try {
+        const { sectionId } = req.params;
+        
+        const query = `
+            SELECT 
+                h."Id_horario" as id,
+                h."Id_dia" as day_id,
+                d."nombre_dia" as day_name,
+                h."Id_bloque" as block_id,
+                b."nombre_bloque" as block_name,
+                b."inicio_bloque" as start_time,
+                b."fin_bloque" as end_time,
+                h."Id_aula" as classroom_id,
+                a."nombre_aula" as classroom_name,
+                h."Id_profesor" as teacher_id,
+                CONCAT(u."nombre", ' ', u."apellido") as teacher_name,
+                m."Id_materia" as subject_id,
+                m."nombre_materia" as subject_name,
+                m."tipo_materia" as subject_type
+            FROM "Horario" h
+            JOIN "Dia" d ON h."Id_dia" = d."Id_dia"
+            JOIN "Bloque_Horario" b ON h."Id_bloque" = b."Id_bloque"
+            LEFT JOIN "Aula" a ON h."Id_aula" = a."Id_aula"
+            LEFT JOIN "Profesor" p ON h."Id_profesor" = p."Id_profesor"
+            LEFT JOIN "Usuario" u ON p."Id_usuario" = u."Id_usuario"
+            LEFT JOIN "Materia" m ON h."Id_materia" = m."Id_materia"
+            WHERE h."Id_seccion" = $1
+            ORDER BY d."Id_dia", b."inicio_bloque"
+        `;
+        
+        const { rows } = await db.query(query, [sectionId]);
+        
+        return res.json({
+            ok: true,
+            horarios: rows
+        });
+        
+    } catch (error) {
+        console.error("Error en getSectionSchedules:", error);
+        return res.status(500).json({
+            ok: false,
+            msg: "Error al obtener horarios de la sección"
+        });
+    }
+};
+
+// No olvides exportarlo en el ScheduleController
+
 // ============================================
 // EXPORTAR CONTROLADOR
 // ============================================
@@ -403,5 +457,8 @@ export const ScheduleController = {
     // Catálogos
     listClassrooms,
     listDays,
-    listBlocks
+    listBlocks,
+
+
+    getSectionSchedules,
 };

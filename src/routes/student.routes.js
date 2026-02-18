@@ -34,6 +34,13 @@ router.get(
   StudentController.getStudentBoletines
 );
 
+// DESPUÉS (CORRECTO) - DEBE COINCIDIR CON EL PREFIJO DE LAS DEMÁS RUTAS:
+router.get('/:id/seccion-actual',  // Cambiado a /:id/seccion-actual para mantener consistencia
+    verifyToken,
+    autoVerifyRole,
+    StudentController.getCurrentSection
+);
+
 // ============================================
 // 🔴 DESPUÉS: RUTAS GENÉRICAS (con verifyAdmin)
 // ============================================

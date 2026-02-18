@@ -567,6 +567,52 @@ const getStudentBoletines = async (req, res) => {
 };
 
 
+// controllers/student.controller.js
+const getCurrentSection = async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`🔍 Buscando sección para estudiante ID: ${id}`);
+        
+        const query = `
+            SELECT 
+                s."Id_seccion" as id,
+                s."nombre_seccion" as nombre_seccion,
+                s."nivel_academico",
+                a."nombre_ano" as academic_year_name,
+                a."Id_ano" as academic_year_id
+            FROM "Estudiante_Seccion" es
+            JOIN "Seccion" s ON es."Id_seccion" = s."Id_seccion"
+            JOIN "Ano_Academico" a ON s."Id_ano" = a."Id_ano"
+            WHERE es."Id_estudiante" = $1
+            ORDER BY es."Id_estudiante_seccion" DESC
+            LIMIT 1
+        `;
+        
+        const { rows } = await db.query(query, [id]);
+        
+        if (rows.length === 0) {
+            return res.status(404).json({
+                ok: false,
+                msg: "El estudiante no está asignado a ninguna sección"
+            });
+        }
+        
+        console.log(`✅ Sección encontrada:`, rows[0]);
+        
+        return res.json({
+            ok: true,
+            seccion: rows[0]
+        });
+        
+    } catch (error) {
+        console.error("Error en getCurrentSection:", error);
+        return res.status(500).json({
+            ok: false,
+            msg: "Error al obtener sección del estudiante"
+        });
+    }
+};
+
 
   // Exportar todos los métodos
   export const StudentController = {
@@ -581,4 +627,5 @@ const getStudentBoletines = async (req, res) => {
     getMyStudents,
     getStudentForRepresentante, // 👈 NUEVO // 👈 Método corregido
     getStudentBoletines,
+    getCurrentSection ,
   };

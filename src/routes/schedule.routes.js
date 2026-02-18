@@ -108,4 +108,14 @@ router.get("/sections/:sectionId/evaluations",
     SectionController.getEvaluationStructure
 );
 
+
+
+
+// Obtener horarios de una sección
+router.get('/schedule/sections/:sectionId/horarios',
+    verifyToken,
+    autoVerifyRole,
+    ScheduleController.getSectionSchedules
+);
+
 export default router;
