@@ -36,7 +36,20 @@ const findAll = async (filters = {}) => {
           u_r."cedula" as representative_dni,
           u_r."telefono" as representative_phone,
           u_r."correo" as representative_email,
-          e."Id_historial" as medical_history_id
+          e."Id_historial" as medical_history_id,
+          (
+            SELECT json_agg(json_build_object(
+              'id', es."Id_estudiante_seccion",
+              'section_id', s."Id_seccion",
+              'section_name', s."nombre_seccion",
+              'academic_year', a."nombre_ano"
+            ))
+            FROM "Estudiante_Seccion" es
+            JOIN "Seccion" s ON es."Id_seccion" = s."Id_seccion"
+            JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
+            JOIN "Ano_Academico" a ON l."Id_ano" = a."Id_ano"
+            WHERE es."Id_estudiante" = e."Id_estudiante"
+          ) as sections
         FROM "Estudiante" e
         LEFT JOIN "Nivel_Escolar" nl ON e."Id_nivel" = nl."Id_nivel"
         LEFT JOIN "Nivel_Danza" nd ON e."Id_nivel_danza" = nd."Id_nivel_danza"
@@ -177,7 +190,7 @@ const findSectionsByStudentId = async (studentId) => {
  * @returns {Promise<Object>}
  */
 const create = async (studentData) => {
-  const client = await db.connect();
+  const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
 
@@ -218,7 +231,7 @@ const create = async (studentData) => {
     };
 
     const { rows } = await client.query(query.text, query.values);
-    
+
     await client.query('COMMIT');
     return rows[0];
   } catch (error) {
@@ -297,7 +310,7 @@ const update = async (id, studentData) => {
  * @returns {Promise<Object>}
  */
 const remove = async (id) => {
-  const client = await db.connect();
+  const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
 
@@ -345,7 +358,7 @@ const enrollInSection = async (studentId, sectionId) => {
       values: [sectionId]
     };
     const { rows } = await db.query(checkQuery.text, checkQuery.values);
-    
+
     if (rows.length > 0) {
       const { capacidad, enrolled } = rows[0];
       if (enrolled >= capacidad) {
@@ -442,12 +455,12 @@ const existsByCedula = async (cedula, excludeId = null) => {
       text: 'SELECT "Id_estudiante" as id FROM "Estudiante" WHERE "cedula" = $1',
       values: [cedula]
     };
-    
+
     if (excludeId) {
       query.text += ' AND "Id_estudiante" != $2';
       query.values.push(excludeId);
     }
-    
+
     const { rows } = await db.query(query.text, query.values);
     return rows.length > 0;
   } catch (error) {
@@ -505,69 +518,144 @@ const findByRepresentante = async (representanteId) => {
  */
 const getStudentBoletines = async (studentId, academicYearId = null) => {
   try {
+    // 1. Verificar si el boletín está disponible para este estudiante y año
+    let availabilityQuery = `
+      SELECT "is_available", "downloads", "academic_year_id"
+      FROM "Boletin_Estudiante"
+      WHERE "student_id" = $1
+    `;
+    const availabilityValues = [studentId];
+
+    if (academicYearId) {
+      availabilityQuery += ` AND "academic_year_id" = $2`;
+      availabilityValues.push(academicYearId);
+    }
+
+    const { rows: availabilityRows } = await db.query(availabilityQuery, availabilityValues);
+
+    // Si no hay registro de boletín o ninguno está disponible, retornamos vacío (o manejamos según lógica de negocio)
+    // PERO: Queremos mostrar las notas SI el admin ya generó el boletín (is_available = true)
+
+    // Mapa de disponibilidad por año
+    const availabilityMap = {};
+    availabilityRows.forEach(row => {
+      availabilityMap[row.academic_year_id] = {
+        is_available: row.is_available,
+        downloads: row.downloads
+      };
+    });
+
+    // 2. Consulta principal para calcular las notas finales
+    // Esta consulta obtiene todas las calificaciones cargadas, las pondera por el porcentaje de su evaluación,
+    // y las suma para obtener la nota final por materia y lapso.
     let query = {
       text: `
         SELECT 
-          bn."Id_boleta" as id,
-          bn."puntaje_final_lapso" as final_score,
-          bn."fecha_emision" as issue_date,
-          bn."descargas" as downloads,
-          bn."disponible" as available,
           l."Id_lapso" as period_id,
           l."nombre_lapso" as period_name,
           a."Id_ano" as academic_year_id,
           a."nombre_ano" as academic_year_name,
           m."Id_materia" as subject_id,
           m."nombre_materia" as subject_name,
-          m."ano_materia" as subject_year
-        FROM "Boleta_Notas" bn
-        INNER JOIN "Lapso" l ON bn."Id_lapso" = l."Id_lapso"
-        INNER JOIN "Ano_Academico" a ON l."Id_ano" = a."Id_ano"
-        INNER JOIN "Materia" m ON bn."Id_materia" = m."Id_materia"
-        WHERE bn."Id_estudiante" = $1
+          COALESCE(g."nombre_grado", 'General') as subject_year,
+          
+          -- Cálculo de la nota final: SUMA(nota * porcentaje / 100)
+          SUM(
+            CASE 
+              WHEN cn."puntaje" IS NOT NULL 
+              THEN (cn."puntaje" * ee."porcentaje" / 100)
+              ELSE 0 
+            END
+          ) as final_score,
+          
+          -- Contar evaluaciones totales esperadas vs cargadas para saber si está completo (opcional)
+          COUNT(ee."Id_estructura_evaluacion") as total_evals,
+          COUNT(cn."Id_carga_nota") as loaded_evals
+
+        FROM "Estudiante_Seccion" es
+        JOIN "Seccion" s ON es."Id_seccion" = s."Id_seccion"
+        JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
+        LEFT JOIN "Grado" g ON m."ano_materia" = g."Id_grado"
+        JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
+        JOIN "Ano_Academico" a ON l."Id_ano" = a."Id_ano"
+        
+        -- Unir con estructura de evaluación (plan de evaluación)
+        JOIN "Estructura_Evaluacion" ee ON s."Id_seccion" = ee."Id_seccion"
+        
+        -- Unir con las notas cargadas (LEFT JOIN para no perder materias sin notas, aunque el boletín debería tenerlas)
+        LEFT JOIN "Carga_Nota" cn ON ee."Id_estructura_evaluacion" = cn."Id_estructura_evaluacion" 
+                                  AND cn."Id_estudiante" = es."Id_estudiante"
+        
+        WHERE es."Id_estudiante" = $1
       `
     };
 
-    const values = [studentId];
+    const queryValues = [studentId];
+    let paramIndex = 2;
 
     if (academicYearId) {
-      query.text += ` AND a."Id_ano" = $2`;
-      values.push(academicYearId);
+      query.text += ` AND a."Id_ano" = $${paramIndex}`;
+      queryValues.push(academicYearId);
     }
 
-    query.text += ` ORDER BY a."Id_ano" DESC, l."Id_lapso" ASC`;
-    query.values = values;
+    // Agrupar por Lapso y Materia
+    query.text += ` 
+      GROUP BY 
+        l."Id_lapso", l."nombre_lapso", 
+        a."Id_ano", a."nombre_ano", 
+        m."Id_materia", m."nombre_materia", g."nombre_grado"
+      ORDER BY a."nombre_ano" DESC, l."nombre_lapso" ASC, m."nombre_materia" ASC
+    `;
+    query.values = queryValues;
 
     const { rows } = await db.query(query.text, query.values);
-    
-    // Agrupar por año académico
+
+    // 3. Estructurar la respuesta
     const boletinesPorAno = {};
-    
+
     rows.forEach(row => {
-      if (!boletinesPorAno[row.academic_year_id]) {
-        boletinesPorAno[row.academic_year_id] = {
-          academic_year_id: row.academic_year_id,
+      const yearId = row.academic_year_id;
+
+      // Solo mostrar si el boletín está disponible para este año (o si queremos mostrar parciales, quitamos este check)
+      const yearAvailability = availabilityMap[yearId];
+      if (!yearAvailability || !yearAvailability.is_available) {
+        return; // Skip si no está "generado/disponible"
+      }
+
+      if (!boletinesPorAno[yearId]) {
+        boletinesPorAno[yearId] = {
+          academic_year_id: yearId,
           academic_year_name: row.academic_year_name,
           periods: []
         };
       }
-      
-      boletinesPorAno[row.academic_year_id].periods.push({
-        period_id: row.period_id,
-        period_name: row.period_name,
-        subjects: [{
-          subject_id: row.subject_id,
-          subject_name: row.subject_name,
-          subject_year: row.subject_year,
-          final_score: row.final_score,
-          issue_date: row.issue_date,
-          downloads: row.downloads,
-          available: row.available
-        }]
+
+      // Buscar si ya existe el período en el array
+      let period = boletinesPorAno[yearId].periods.find(p => p.period_id === row.period_id);
+
+      if (!period) {
+        period = {
+          period_id: row.period_id,
+          period_name: row.period_name,
+          subjects: []
+        };
+        boletinesPorAno[yearId].periods.push(period);
+      }
+
+      // Agregar la materia al período
+      period.subjects.push({
+        subject_id: row.subject_id,
+        subject_name: row.subject_name,
+        subject_year: (row.subject_year && row.subject_year !== 'General') ? row.subject_year : '',
+        final_score: parseFloat(row.final_score).toFixed(2), // Formatear a 2 decimales
+        issue_date: new Date().toISOString(), // Fecha actual como referencia
+        downloads: yearAvailability.downloads,
+        available: true
       });
     });
 
     return Object.values(boletinesPorAno);
+
   } catch (error) {
     console.error("Error en getStudentBoletines:", error);
     throw error;

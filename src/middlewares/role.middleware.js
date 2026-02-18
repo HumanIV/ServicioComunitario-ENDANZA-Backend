@@ -50,8 +50,8 @@ const routePermissions = {
   // ============================================
   // 🟢 RUTAS EXISTENTES
   // ============================================
-  '/api/students': ['admin'],
-  '/api/students/*': ['admin'],
+  '/api/students/list': ['admin', 'docente'],
+  '/api/students/*': ['admin', 'docente'],
   '/api/inscripcion': ['admin'],
   '/api/inscripcion/*': ['admin'],
   '/api/aulas': ['admin'],
@@ -80,6 +80,13 @@ const routePermissions = {
   '/api/grades/*': ['admin', 'docente'],
   '/api/grades/section/:sectionId': ['admin', 'docente'],
   '/api/grades/student/:studentId': ['admin', 'docente'],
+
+  // ============================================
+  // 🟢 RUTAS DE REPRESENTANTES
+  // ============================================
+  '/api/representantes/list': ['admin'],
+  '/api/representantes/search': ['admin'],
+  '/api/representantes/:id/estudiantes': ['admin', 'representante'],
 };
 
 /**
@@ -88,7 +95,7 @@ const routePermissions = {
  */
 export const autoVerifyRole = async (req, res, next) => {
   try {
-    const path = req.path;
+    const path = req.baseUrl + req.path;
     const method = req.method;
 
     console.log(`\n🔍 AUTO VERIFY ROLE - ${method} ${path}`);
@@ -120,19 +127,22 @@ export const autoVerifyRole = async (req, res, next) => {
         .replace(/\*/g, '.*')
         .replace(/:\w+/g, '\\w+');
 
-      const regex = new RegExp(`^${regexPattern}$`);
+      const regex = new RegExp(`^${regexPattern}/?$`);
 
-      if (regex.test(path)) {
+      const isMatch = regex.test(path);
+      // console.log(`   Probando patrón: ${routePattern} -> Match: ${isMatch}`);
+
+      if (isMatch) {
         requiredRoles = roles;
         matchedPattern = routePattern;
-        console.log(`🎯 Patrón encontrado: "${routePattern}" → Roles requeridos: [${roles.join(', ')}]`);
+        console.log(`🎯 Patrón coincidente: "${routePattern}" → Roles requeridos: [${roles.join(', ')}]`);
         break;
       }
     }
 
     // Si la ruta no tiene restricciones de rol, permitir acceso
     if (requiredRoles.length === 0) {
-      console.log(`✅ Ruta "${path}" no tiene restricciones de rol, permitiendo acceso`);
+      console.log(`✅ Ruta "${path}" no tiene restricciones de rol en autoVerifyRole`);
       return next();
     }
 
@@ -165,6 +175,7 @@ export const autoVerifyRole = async (req, res, next) => {
 
     console.log(`\n✅ ACCESO PERMITIDO - Ruta: ${path} para ${userRole}`);
     console.log(`   Usuario: ${req.user.username} (ID: ${req.user.userId})`);
+    console.log(`   Id_rol: ${userRoleId}`);
 
     // Agregar información del rol al request para uso posterior
     req.user.role = userRole;

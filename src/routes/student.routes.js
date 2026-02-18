@@ -12,51 +12,57 @@ const router = express.Router();
 
 // Ruta para representantes (DEBE IR PRIMERO)
 router.get(
-  "/mis-estudiantes", 
-  verifyToken, 
+  "/mis-estudiantes",
+  verifyToken,
   autoVerifyRole,
   StudentController.getMyStudents
 );
 
 // Ruta para perfil de estudiante para representantes (DEBE IR ANTES DE /:id)
 router.get(
-  "/:id/representante", 
-  verifyToken, 
+  "/:id/representante",
+  verifyToken,
   autoVerifyRole,
   StudentController.getStudentForRepresentante
 );
 
 // Ruta para obtener boletines de un estudiante (para representantes)
 router.get(
-  "/:id/boletines", 
-  verifyToken, 
+  "/:id/boletines",
+  verifyToken,
   autoVerifyRole,
   StudentController.getStudentBoletines
 );
 
 // DESPUÉS (CORRECTO) - DEBE COINCIDIR CON EL PREFIJO DE LAS DEMÁS RUTAS:
 router.get('/:id/seccion-actual',  // Cambiado a /:id/seccion-actual para mantener consistencia
-    verifyToken,
-    autoVerifyRole,
-    StudentController.getCurrentSection
+  verifyToken,
+  autoVerifyRole,
+  StudentController.getCurrentSection
+);
+
+// Ruta para obtener horarios por grado del estudiante (para representantes)
+router.get('/:id/horario-grado',
+  verifyToken,
+  autoVerifyRole,
+  StudentController.getScheduleByGrade
 );
 
 // ============================================
 // 🔴 DESPUÉS: RUTAS GENÉRICAS (con verifyAdmin)
 // ============================================
-router.get("/", verifyToken, verifyAdmin, autoVerifyRole, StudentController.listStudents);
 // Listar estudiantes: admin y docentes pueden ver (docentes ven los de sus secciones)
-router.get("/", verifyToken, StudentController.listStudents);
-router.get("/search", verifyToken, verifyAdmin, autoVerifyRole, StudentController.searchStudents);
-router.get("/:id", verifyToken, verifyAdmin, autoVerifyRole, StudentController.getStudent);
-router.post("/", verifyToken, verifyAdmin, autoVerifyRole, StudentController.createStudent);
-router.put("/:id", verifyToken, verifyAdmin, autoVerifyRole, StudentController.updateStudent);
-router.delete("/:id", verifyToken, verifyAdmin, autoVerifyRole, StudentController.deleteStudent);
+router.get("/list", verifyToken, autoVerifyRole, StudentController.listStudents);
+router.get("/search", verifyToken, autoVerifyRole, StudentController.searchStudents);
+router.get("/:id", verifyToken, autoVerifyRole, StudentController.getStudent);
+router.post("/", verifyToken, autoVerifyRole, StudentController.createStudent);
+router.put("/:id", verifyToken, autoVerifyRole, StudentController.updateStudent);
+router.delete("/:id", verifyToken, autoVerifyRole, StudentController.deleteStudent);
 
 // ============================================
 // RUTAS PARA INSCRIPCIONES
 // ============================================
-router.post("/enroll", verifyToken, verifyAdmin, autoVerifyRole, StudentController.enrollStudent);
-router.delete("/:studentId/sections/:sectionId", verifyToken, verifyAdmin, autoVerifyRole, StudentController.removeEnrollment);
+router.post("/enroll", verifyToken, autoVerifyRole, StudentController.enrollStudent);
+router.delete("/:studentId/sections/:sectionId", verifyToken, autoVerifyRole, StudentController.removeEnrollment);
 
 export default router;

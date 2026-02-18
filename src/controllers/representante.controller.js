@@ -14,7 +14,7 @@ export const RepresentanteController = {
         password // 🔐 RECIBIR CONTRASEÑA DEL FRONTEND
       } = req.body;
 
-      console.log("📝 Recibida preinscripción:", { 
+      console.log("📝 Recibida preinscripción:", {
         dni, email, parentesco, estudiantesCount: estudiantes?.length,
         esExistente: !!id_representante,
         tienePassword: !!password
@@ -33,7 +33,7 @@ export const RepresentanteController = {
 
       // CASO 1: Buscar si ya existe por cédula
       const existing = await RepresentanteModel.findByCedula(dni);
-      
+
       if (existing) {
         // Representante EXISTENTE - solo usamos sus datos
         console.log("✅ Representante existente encontrado:", existing.id_representante);
@@ -50,7 +50,7 @@ export const RepresentanteController = {
       } else {
         // CASO 2: Representante NUEVO - crear usuario + representante
         console.log("🆕 Creando nuevo representante...");
-        
+
         // Validar que la contraseña exista para nuevos representantes
         if (!password) {
           return res.status(400).json({
@@ -58,7 +58,7 @@ export const RepresentanteController = {
             msg: "La contraseña es obligatoria para nuevos representantes"
           });
         }
-        
+
         if (password.length < 4) {
           return res.status(400).json({
             ok: false,
@@ -67,13 +67,13 @@ export const RepresentanteController = {
         }
 
         representante = await RepresentanteModel.create({
-          dni, 
-          first_name, 
-          last_name, 
-          phone, 
+          dni,
+          first_name,
+          last_name,
+          phone,
           email,
-          parentesco, 
-          parentesco_otro, 
+          parentesco,
+          parentesco_otro,
           direccion,
           password // ✅ AHORA SÍ SE ENVÍA LA CONTRASEÑA
         });
@@ -95,13 +95,13 @@ export const RepresentanteController = {
             '5to Grado': 5,
             '6to Grado': 6
           };
-          
+
           if (estudiante.gradeLevel) {
             Id_nivel = gradoMap[estudiante.gradeLevel] || 1;
           }
 
           // Generar cédula única para el estudiante
-          const cedulaEstudiante = `E${Date.now()}${Math.floor(Math.random()*1000)}`;
+          const cedulaEstudiante = `E${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
           // Crear estudiante con el ID del representante
           const studentQuery = {
@@ -130,7 +130,7 @@ export const RepresentanteController = {
           };
 
           const result = await db.query(studentQuery.text, studentQuery.values);
-          
+
           estudiantesCreados.push({
             ...result.rows[0],
             gradeLevel: estudiante.gradeLevel
@@ -141,7 +141,7 @@ export const RepresentanteController = {
       // Preparar respuesta
       const response = {
         ok: true,
-        msg: esNuevoRepresentante 
+        msg: esNuevoRepresentante
           ? "Representante y estudiantes registrados exitosamente"
           : "Estudiantes agregados al representante existente",
         representante: {
@@ -185,7 +185,7 @@ export const RepresentanteController = {
   searchRepresentantes: async (req, res) => {
     try {
       const { term } = req.query;
-      
+
       if (!term || term.length < 2) {
         return res.json({
           ok: true,
@@ -214,7 +214,7 @@ export const RepresentanteController = {
   getRepresentanteConEstudiantes: async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       const representante = await RepresentanteModel.findById(id);
       if (!representante) {
         return res.status(404).json({
@@ -244,26 +244,27 @@ export const RepresentanteController = {
 
 
   // Listar todos los representantes
-listRepresentantes: async (req, res) => {
-  try {
-    console.log("📋 Listando todos los representantes...");
-    
-    const representantes = await RepresentanteModel.list();
+  listRepresentantes: async (req, res) => {
+    try {
+      console.log("📋 Listando todos los representantes...");
 
-    res.json({
-      ok: true,
-      representantes,
-      total: representantes.length
-    });
+      const representantes = await RepresentanteModel.list();
+      console.log(`✅ Representantes encontrados: ${representantes.length}`);
 
-  } catch (error) {
-    console.error("Error en listRepresentantes:", error);
-    res.status(500).json({
-      ok: false,
-      msg: "Error al listar representantes",
-      error: error.message
-    });
-  }
-},
+      res.json({
+        ok: true,
+        representantes,
+        total: representantes.length
+      });
+
+    } catch (error) {
+      console.error("Error en listRepresentantes:", error);
+      res.status(500).json({
+        ok: false,
+        msg: "Error al listar representantes",
+        error: error.message
+      });
+    }
+  },
 
 };

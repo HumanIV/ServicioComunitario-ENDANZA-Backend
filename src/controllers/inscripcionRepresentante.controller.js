@@ -10,10 +10,10 @@ export const InscripcionRepresentanteController = {
   completarInscripcion: async (req, res) => {
     try {
       const userId = req.user?.userId;
-      const { 
-        id_estudiante, 
+      const {
+        id_estudiante,
         id_ano_academico,
-        datos_completos 
+        datos_completos
       } = req.body;
 
       console.log("📝 Recibiendo inscripción completa:", {
@@ -39,7 +39,7 @@ export const InscripcionRepresentanteController = {
 
       // 2. Verificar que el usuario es representante
       const representante = await RepresentanteModel.findByUserId(userId);
-      
+
       if (!representante) {
         return res.status(403).json({
           ok: false,
@@ -49,7 +49,7 @@ export const InscripcionRepresentanteController = {
 
       // 3. Verificar que el estudiante pertenece al representante
       const student = await StudentModel.findById(id_estudiante);
-      
+
       if (!student) {
         return res.status(404).json({
           ok: false,
@@ -95,7 +95,7 @@ export const InscripcionRepresentanteController = {
             datos_completos.nacimiento || null
           ]
         };
-        
+
         const historialResult = await db.query(historialQuery.text, historialQuery.values);
         const id_historial = historialResult.rows[0].id;
 
@@ -146,9 +146,9 @@ export const InscripcionRepresentanteController = {
           `,
           values: [id_estudiante, id_ano_academico]
         };
-        
+
         const inscripcionExistente = await db.query(checkInscripcionQuery.text, checkInscripcionQuery.values);
-        
+
         if (inscripcionExistente.rows.length > 0) {
           await db.query('ROLLBACK');
           return res.status(400).json({
@@ -169,7 +169,7 @@ export const InscripcionRepresentanteController = {
           `,
           values: [id_estudiante, id_seccion]
         };
-        
+
         await db.query(inscripcionQuery.text, inscripcionQuery.values);
 
         await db.query('COMMIT');
@@ -221,7 +221,7 @@ export const InscripcionRepresentanteController = {
 
       // Verificar que el usuario es representante
       const representante = await RepresentanteModel.findByUserId(userId);
-      
+
       if (!representante) {
         return res.status(403).json({
           ok: false,
@@ -231,7 +231,7 @@ export const InscripcionRepresentanteController = {
 
       // Verificar que el estudiante pertenece al representante
       const student = await StudentModel.findById(studentId);
-      
+
       if (!student || student.representative_id !== representante.id) {
         return res.status(403).json({
           ok: false,
@@ -250,9 +250,9 @@ export const InscripcionRepresentanteController = {
         `,
         values: [studentId, ano]
       };
-      
+
       const result = await db.query(query.text, query.values);
-      
+
       return res.json({
         ok: true,
         data: {
@@ -281,12 +281,12 @@ export const InscripcionRepresentanteController = {
 async function guardarPadresEnTablaPadre(id_estudiante, datos) {
   try {
     console.log("👪 Guardando padres para estudiante:", id_estudiante);
-    
+
     // 1. Insertar MADRE
     let id_madre = null;
     if (datos.nombre_Madre && datos.apellido_Madre) {
       console.log("📝 Insertando madre:", datos.nombre_Madre, datos.apellido_Madre);
-      
+
       const madreQuery = {
         text: `
           INSERT INTO "Padre" (
@@ -312,7 +312,7 @@ async function guardarPadresEnTablaPadre(id_estudiante, datos) {
     let id_padre = null;
     if (datos.nombre_Padre && datos.apellido_Padre) {
       console.log("📝 Insertando padre:", datos.nombre_Padre, datos.apellido_Padre);
-      
+
       const padreQuery = {
         text: `
           INSERT INTO "Padre" (
@@ -359,7 +359,7 @@ async function guardarPadresEnTablaPadre(id_estudiante, datos) {
     }
 
     console.log(`✅ Padres guardados exitosamente: Madre=${id_madre || 'no'}, Padre=${id_padre || 'no'}`);
-    
+
   } catch (error) {
     console.error("❌ Error en guardarPadresEnTablaPadre:", error);
     throw error;
@@ -371,7 +371,7 @@ async function guardarPadresEnTablaPadre(id_estudiante, datos) {
  */
 async function getOrCreateEscuela(nombreEscuela) {
   if (!nombreEscuela) return null;
-  
+
   try {
     // Buscar si existe
     const query = {
@@ -379,11 +379,11 @@ async function getOrCreateEscuela(nombreEscuela) {
       values: [nombreEscuela]
     };
     const result = await db.query(query.text, query.values);
-    
+
     if (result.rows.length > 0) {
       return result.rows[0].Id_escuela;
     }
-    
+
     // Crear nueva escuela
     const insertQuery = {
       text: `INSERT INTO "Escuela_Regular" ("nombre_escuela") VALUES ($1) RETURNING "Id_escuela"`,
@@ -417,20 +417,20 @@ async function obtenerOCrearSeccion(id_ano_academico, nivelAcademico) {
     `,
     values: [id_ano_academico, nivelAcademico || 'Sin materia']
   };
-  
+
   const seccionResult = await db.query(seccionQuery.text, seccionQuery.values);
-  
+
   if (seccionResult.rows.length > 0) {
     return seccionResult.rows[0].Id_seccion;
   }
-  
+
   // Si no hay sección, crear una nueva
   const lapsoQuery = {
     text: `SELECT "Id_lapso" FROM "Lapso" WHERE "Id_ano" = $1 LIMIT 1`,
     values: [id_ano_academico]
   };
   const lapsoResult = await db.query(lapsoQuery.text, lapsoQuery.values);
-  
+
   if (lapsoResult.rows.length === 0) {
     throw new Error("No hay lapsos configurados para este año académico");
   }
@@ -443,14 +443,14 @@ async function obtenerOCrearSeccion(id_ano_academico, nivelAcademico) {
       RETURNING "Id_seccion"
     `,
     values: [
-      'A', 
-      30, 
-      lapsoResult.rows[0].Id_lapso, 
-      id_ano_academico, 
+      'A',
+      30,
+      lapsoResult.rows[0].Id_lapso,
+      id_ano_academico,
       nivelAcademico || 'Sin materia'
     ]
   };
-  
+
   const nuevaSeccion = await db.query(crearSeccionQuery.text, crearSeccionQuery.values);
   return nuevaSeccion.rows[0].Id_seccion;
 }
