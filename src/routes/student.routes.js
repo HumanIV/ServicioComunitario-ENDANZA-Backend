@@ -45,6 +45,8 @@ router.get('/:id/seccion-actual',  // Cambiado a /:id/seccion-actual para manten
 // 🔴 DESPUÉS: RUTAS GENÉRICAS (con verifyAdmin)
 // ============================================
 router.get("/", verifyToken, verifyAdmin, autoVerifyRole, StudentController.listStudents);
+// Listar estudiantes: admin y docentes pueden ver (docentes ven los de sus secciones)
+router.get("/", verifyToken, StudentController.listStudents);
 router.get("/search", verifyToken, verifyAdmin, autoVerifyRole, StudentController.searchStudents);
 router.get("/:id", verifyToken, verifyAdmin, autoVerifyRole, StudentController.getStudent);
 router.post("/", verifyToken, verifyAdmin, autoVerifyRole, StudentController.createStudent);

@@ -1,5 +1,14 @@
 // models/grade.model.js
 import { db } from "../db/connection.database.js";
+import fs from 'fs';
+import path from 'path';
+
+const logFile = path.resolve('grades_debug.txt');
+const log = (msg) => {
+    try {
+        fs.appendFileSync(logFile, new Date().toISOString() + ' ' + msg + '\n');
+    } catch (e) { console.error('Error logging', e); }
+};
 
 // ============================================
 // MODELO DE NOTAS
@@ -8,7 +17,7 @@ import { db } from "../db/connection.database.js";
 /**
  * Obtiene todas las notas de una sección
  */
-const getGradesBySection = async (sectionId) => {
+const getGradesBySection = async (sectionId, lapsoId = null) => {
     try {
         const query = {
             text: `
@@ -26,11 +35,12 @@ const getGradesBySection = async (sectionId) => {
                 INNER JOIN "Estudiante" e ON cn."Id_estudiante" = e."Id_estudiante"
                 INNER JOIN "Estructura_Evaluacion" ee ON cn."Id_estructura_evaluacion" = ee."Id_estructura_evaluacion"
                 WHERE ee."Id_seccion" = $1
+                  AND ($2::int IS NULL OR ee."Id_lapso" = $2::int)
                 ORDER BY e."apellido", e."nombre", ee."numero_evaluacion"
             `,
-            values: [sectionId]
+            values: [sectionId, lapsoId]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows;
     } catch (error) {
@@ -43,99 +53,135 @@ const getGradesBySection = async (sectionId) => {
  * Guarda o actualiza notas de estudiantes
  */
 const saveGrades = async (gradesData) => {
-    const client = await db.connect();
-    
+    const client = await db.pool.connect();
+    log('--- INICIO SAVE GRADES ---');
+    log('Datos recibidos: ' + JSON.stringify(gradesData));
+
     try {
         await client.query('BEGIN');
-        
-        const { sectionId, grades, academicYearId } = gradesData;
+
+        const { sectionId, grades, academicYearId, isAdmin = false, lapsoId } = gradesData;
         const results = [];
-        
-        // Obtener la estructura de evaluaciones de la sección
+
+        // Si es docente, la nota queda pendiente de aprobación (false)
+        // Si es admin, la nota se formaliza directamente (true)
+        const formalizada = isAdmin ? true : false;
+        log(`Formalizada: ${formalizada}, Sección: ${sectionId}, Lapso: ${lapsoId}`);
+
+        // Obtener la estructura de evaluaciones de la sección, incluyendo el tipo para replicarlo
         const structureQuery = {
             text: `
-                SELECT "Id_estructura_evaluacion", "numero_evaluacion"
+                SELECT "Id_estructura_evaluacion", "numero_evaluacion", "Id_tipo_evaluacion"
                 FROM "Estructura_Evaluacion"
-                WHERE "Id_seccion" = $1
+                WHERE "Id_seccion" = $1 
+                  AND ($2::int IS NULL OR "Id_lapso" = $2::int)
             `,
-            values: [sectionId]
+            values: [sectionId, lapsoId]
         };
-        
+
         const structureResult = await client.query(structureQuery.text, structureQuery.values);
-        
-        if (structureResult.rows.length === 0) {
-            throw new Error('No hay estructura de evaluaciones definida para esta sección');
+        log(`Estructuras encontradas: ${structureResult.rows.length}`);
+
+        // Intentar obtener un tipo de evaluación por defecto de las existentes
+        let defaultTypeId = null;
+        if (structureResult.rows.length > 0) {
+            // Usar el primer tipo encontrado que no sea nulo
+            const found = structureResult.rows.find(r => r.Id_tipo_evaluacion);
+            if (found) defaultTypeId = found.Id_tipo_evaluacion;
         }
-        
+        log(`Tipo por defecto: ${defaultTypeId}`);
+
         // Mapear número de evaluación a ID de estructura
         const evalMap = {};
         structureResult.rows.forEach(row => {
             evalMap[row.numero_evaluacion] = row.Id_estructura_evaluacion;
         });
-        
+
         // Procesar cada estudiante
         for (const [studentId, notas] of Object.entries(grades)) {
+            log(`Procesando estudiante ${studentId}. Notas: ${JSON.stringify(notas)}`);
             for (let i = 1; i <= 4; i++) {
                 const nota = notas[`n${i}`];
-                if (nota && nota !== "") {
-                    const estructuraId = evalMap[i];
-                    
+                // Solo procesar si hay nota y no es cadena vacía
+                if (nota !== undefined && nota !== "" && nota !== null) {
+                    let estructuraId = evalMap[i];
+                    log(`  Eval ${i}: Nota ${nota}. EstructuraID: ${estructuraId}`);
+
+                    // Si no existe estructura para esta evaluación, crearla automáticamente
                     if (!estructuraId) {
-                        console.warn(`⚠️ No hay estructura para evaluación ${i} en sección ${sectionId}`);
-                        continue;
+                        log(`  ✨ Creando estructura automática para evaluación ${i} en sección ${sectionId}`);
+                        const createStructQuery = {
+                            text: `
+                                INSERT INTO "Estructura_Evaluacion" 
+                                ("Id_seccion", "numero_evaluacion", "porcentaje_peso", "Id_tipo_evaluacion", "Id_lapso") 
+                                VALUES ($1, $2, $3, $4, $5) 
+                                RETURNING "Id_estructura_evaluacion"
+                            `,
+                            values: [sectionId, i, 25, defaultTypeId, lapsoId] // Peso default 25%
+                        };
+                        const newStruct = await client.query(createStructQuery.text, createStructQuery.values);
+                        estructuraId = newStruct.rows[0].Id_estructura_evaluacion;
+                        evalMap[i] = estructuraId; // Actualizar mapa para futuras iteraciones
+                        log(`  ✅ Nueva estructura creada: ${estructuraId}`);
                     }
-                    
+
                     // Verificar si ya existe una nota para esta evaluación
                     const checkQuery = {
                         text: `
-                            SELECT "Id_nota" 
+                            SELECT "Id_nota", "esta_formalizada"
                             FROM "Carga_Nota" 
                             WHERE "Id_estudiante" = $1 
                               AND "Id_estructura_evaluacion" = $2
                         `,
                         values: [studentId, estructuraId]
                     };
-                    
+
                     const existing = await client.query(checkQuery.text, checkQuery.values);
-                    
+
                     if (existing.rows.length > 0) {
                         // Actualizar nota existente
+                        log(`  🔄 Actualizando nota existente ${existing.rows[0].Id_nota}`);
                         const updateQuery = {
                             text: `
                                 UPDATE "Carga_Nota"
-                                SET "puntaje" = $1, "esta_formalizada" = true
-                                WHERE "Id_nota" = $2
+                                SET "puntaje" = $1, "esta_formalizada" = $2
+                                WHERE "Id_nota" = $3
                                 RETURNING "Id_nota" as id
                             `,
-                            values: [parseFloat(nota), existing.rows[0].Id_nota]
+                            values: [parseFloat(nota), formalizada, existing.rows[0].Id_nota]
                         };
-                        
+
                         const result = await client.query(updateQuery.text, updateQuery.values);
                         results.push(result.rows[0]);
                     } else {
                         // Insertar nueva nota
+                        log(`  ➕ Insertando nueva nota`);
                         const insertQuery = {
                             text: `
                                 INSERT INTO "Carga_Nota" 
                                 ("puntaje", "esta_formalizada", "Id_estudiante", "Id_estructura_evaluacion")
-                                VALUES ($1, true, $2, $3)
+                                VALUES ($1, $2, $3, $4)
                                 RETURNING "Id_nota" as id
                             `,
-                            values: [parseFloat(nota), studentId, estructuraId]
+                            values: [parseFloat(nota), formalizada, studentId, estructuraId]
                         };
-                        
+
                         const result = await client.query(insertQuery.text, insertQuery.values);
                         results.push(result.rows[0]);
                     }
+                } else {
+                    // log(`  Eval ${i}: Ignorada (vacía/null)`);
                 }
             }
         }
-        
+
         await client.query('COMMIT');
+        log('--- COMMIT EXITOSO ---');
         return results;
-        
+
     } catch (error) {
         await client.query('ROLLBACK');
+        log('❌ ERROR ROLLBACK: ' + error.message);
         console.error("❌ Error en saveGrades:", error);
         throw error;
     } finally {
@@ -164,7 +210,7 @@ const getStudentsBySection = async (sectionId) => {
             `,
             values: [sectionId]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows;
     } catch (error) {
@@ -176,7 +222,7 @@ const getStudentsBySection = async (sectionId) => {
 /**
  * Obtiene la estructura de evaluaciones de una sección
  */
-const getEvaluationStructure = async (sectionId) => {
+const getEvaluationStructure = async (sectionId, lapsoId = null) => {
     try {
         const query = {
             text: `
@@ -188,11 +234,12 @@ const getEvaluationStructure = async (sectionId) => {
                 FROM "Estructura_Evaluacion" ee
                 LEFT JOIN "Tipo_Evaluacion" te ON ee."Id_tipo_evaluacion" = te."Id_tipo_evaluacion"
                 WHERE ee."Id_seccion" = $1
+                  AND ($2::int IS NULL OR ee."Id_lapso" = $2::int)
                 ORDER BY ee."numero_evaluacion"
             `,
-            values: [sectionId]
+            values: [sectionId, lapsoId]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows;
     } catch (error) {
@@ -225,7 +272,7 @@ const getStudentGrades = async (studentId) => {
             `,
             values: [studentId]
         };
-        
+
         const { rows } = await db.query(query.text, query.values);
         return rows;
     } catch (error) {

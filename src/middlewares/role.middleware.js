@@ -3,7 +3,7 @@
 // Mapeo de Id_rol a nombres de roles
 export const roleMap = {
   1: 'admin',
-  2: 'docente', 
+  2: 'docente',
   3: 'estudiante',
   4: 'representante'
 };
@@ -15,7 +15,13 @@ const routePermissions = {
   '/api/users/activate/:id': ['admin'],
   '/api/users/deactivate/:id': ['admin'],
   '/api/users/:id': ['admin'],
-  
+
+  // ============================================
+  // 🟢 RUTAS DE CONFIGURACIÓN (AÑOS ACADÉMICOS)
+  // ============================================
+  '/api/config/academic-years': ['admin', 'docente', 'representante', 'estudiante'],
+  '/api/config/academic-years/active': ['admin', 'docente', 'representante', 'estudiante'],
+
   // ============================================
   // 🟢 RUTAS DE TEACHERS
   // ============================================
@@ -27,7 +33,7 @@ const routePermissions = {
   '/api/teachers/:id/grades': ['admin'],
   '/api/teachers/:id/my-schedule': ['admin', 'docente'],
   '/api/teachers/:id/my-students': ['docente'],
-  
+
   // ============================================
   // 🟢 RUTAS DE SECTIONS/HORARIOS - AGREGADAS 🟢
   // ============================================
@@ -40,7 +46,7 @@ const routePermissions = {
   '/api/days': ['admin', 'docente'],
   '/api/blocks': ['admin', 'docente'],
   '/api/schedules/check-availability': ['admin', 'docente'],
-  
+
   // ============================================
   // 🟢 RUTAS EXISTENTES
   // ============================================
@@ -50,22 +56,30 @@ const routePermissions = {
   '/api/inscripcion/*': ['admin'],
   '/api/aulas': ['admin'],
   '/api/aulas/*': ['admin'],
-  
+
   '/api/notas': ['admin', 'docente'],
   '/api/notas/*': ['admin', 'docente'],
   '/api/boletin': ['admin', 'docente'],
   '/api/boletin/*': ['admin', 'docente'],
   '/api/horario': ['admin', 'docente'],
   '/api/horario/*': ['admin', 'docente'],
-  
+
   '/api/docente/inicio': ['docente'],
   '/api/docente/horario': ['docente'],
   '/api/docente/estudiantes': ['docente'],
-  
+
   '/api/representante/inicio': ['representante'],
   '/api/representante/estudiantes': ['representante'],
   '/api/representante/boletin': ['representante'],
   '/api/representante/horario': ['representante'],
+
+  // ============================================
+  // 🟢 RUTAS DE GRADES (CALIFICACIONES)
+  // ============================================
+  '/api/grades': ['admin', 'docente'],
+  '/api/grades/*': ['admin', 'docente'],
+  '/api/grades/section/:sectionId': ['admin', 'docente'],
+  '/api/grades/student/:studentId': ['admin', 'docente'],
 };
 
 /**
@@ -76,10 +90,10 @@ export const autoVerifyRole = async (req, res, next) => {
   try {
     const path = req.path;
     const method = req.method;
-    
+
     console.log(`\n🔍 AUTO VERIFY ROLE - ${method} ${path}`);
     console.log(`👤 Usuario en req.user:`, req.user ? '✅ Sí' : '❌ No');
-    
+
     if (req.user) {
       console.log(`📋 Datos del usuario:`, {
         userId: req.user.userId,
@@ -99,15 +113,15 @@ export const autoVerifyRole = async (req, res, next) => {
     // Buscar coincidencias en las rutas protegidas
     let requiredRoles = [];
     let matchedPattern = '';
-    
+
     for (const [routePattern, roles] of Object.entries(routePermissions)) {
       // Convertir patrón a regex
       const regexPattern = routePattern
         .replace(/\*/g, '.*')
         .replace(/:\w+/g, '\\w+');
-      
+
       const regex = new RegExp(`^${regexPattern}$`);
-      
+
       if (regex.test(path)) {
         requiredRoles = roles;
         matchedPattern = routePattern;
@@ -125,7 +139,7 @@ export const autoVerifyRole = async (req, res, next) => {
     // Obtener rol del usuario desde el token
     const userRoleId = req.user.Id_rol;
     const userRole = roleMap[userRoleId] || 'estudiante';
-    
+
     console.log(`👤 Rol del usuario: "${userRole}" (Id_rol: ${userRoleId})`);
 
     // Verificar si el usuario tiene el rol requerido
@@ -135,7 +149,7 @@ export const autoVerifyRole = async (req, res, next) => {
       console.warn(`   Usuario rol: ${userRole}`);
       console.warn(`   Roles requeridos: ${requiredRoles.join(', ')}`);
       console.warn(`   Patrón coincidente: ${matchedPattern}`);
-      
+
       return res.status(403).json({
         ok: false,
         msg: "Acceso denegado. No tienes permisos suficientes.",
@@ -151,16 +165,16 @@ export const autoVerifyRole = async (req, res, next) => {
 
     console.log(`\n✅ ACCESO PERMITIDO - Ruta: ${path} para ${userRole}`);
     console.log(`   Usuario: ${req.user.username} (ID: ${req.user.userId})`);
-    
+
     // Agregar información del rol al request para uso posterior
     req.user.role = userRole;
     req.user.roleName = userRole;
-    
+
     next();
   } catch (error) {
     console.error("\n❌ AUTO VERIFY ROLE - Error:", error);
     console.error("Stack:", error.stack);
-    
+
     return res.status(500).json({
       ok: false,
       msg: "Error verificando permisos",
@@ -185,7 +199,7 @@ export const verifyRole = (requiredRoles = []) => {
 
       const userRoleId = req.user.Id_rol;
       const userRole = roleMap[userRoleId] || 'estudiante';
-      
+
       console.log(`\n🔍 VERIFY ROLE EXPLÍCITO - Usuario: ${req.user.userId}, Rol: ${userRole}`);
       console.log(`   Roles requeridos: [${requiredRoles.join(', ')}]`);
 
@@ -198,7 +212,7 @@ export const verifyRole = (requiredRoles = []) => {
         console.warn(`\n🚨 ACCESO DENEGADO - verifyRole explícito`);
         console.warn(`   Usuario rol: ${userRole}`);
         console.warn(`   Roles requeridos: ${requiredRoles.join(', ')}`);
-        
+
         return res.status(403).json({
           ok: false,
           msg: "Acceso denegado. Permisos insuficientes.",

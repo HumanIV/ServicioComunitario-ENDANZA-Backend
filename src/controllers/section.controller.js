@@ -8,14 +8,37 @@ const listSections = async (req, res) => {
   try {
     const { academicYearId } = req.query;
     const sections = await SectionModel.findAll(academicYearId);
-    
-    // Transformar al formato esperado por el frontend
-    const transformed = sections.map(s => ({
-      id: s.id,
-      sectionName: s.section_name,
-      gradeLevel: s.subject_name, // Temporal, necesitarás mapear mejor
-      academicYear: s.academic_year_name,
-      schedules: [] // Se cargarán después
+
+    // Transformar y cargar horarios para cada sección
+    const transformed = await Promise.all(sections.map(async s => {
+      // Obtenemos los horarios de la sección
+      const schedules = await SectionModel.findSchedulesBySectionId(s.id);
+
+      return {
+        id: s.id,
+        section_name: s.section_name,
+        subject_name: s.subject_name,
+        subject_id: s.subject_id,
+        academic_year_name: s.academic_year_name,
+        academic_year_id: s.academic_year_id,
+        grade_id: s.grade_id,
+        grade_name: s.grade_name,
+        student_count: parseInt(s.student_count || 0),
+        // Mapeamos los horarios al formato esperado por el frontend
+        schedules: schedules.map(sch => ({
+          id: sch.id,
+          subject: sch.subject_name || 'Materia', // Asumiendo que el horario o la materia tienen nombre
+          teacherName: sch.teacher_name
+            ? `${sch.teacher_name.trim()} ${sch.teacher_lastname.trim()}`.replace(/\s+/g, ' ')
+            : 'Sin profesor',
+          teacherId: sch.teacher_id,
+          teacherUserId: sch.user_id, // Added user ID for robust filtering
+          day_name: sch.day_name,
+          start_time: sch.start_time,
+          end_time: sch.end_time,
+          classroom: sch.classroom_name
+        }))
+      };
     }));
 
     return res.json({
@@ -36,7 +59,7 @@ const getSection = async (req, res) => {
   try {
     const { id } = req.params;
     const section = await SectionModel.findById(id);
-    
+
     if (!section) {
       return res.status(404).json({
         ok: false,
@@ -81,7 +104,7 @@ const createSection = async (req, res) => {
   try {
     const sectionData = req.body;
     const newSection = await SectionModel.create(sectionData);
-    
+
     return res.status(201).json({
       ok: true,
       msg: "Sección creada exitosamente",
@@ -101,9 +124,9 @@ const updateSection = async (req, res) => {
   try {
     const { id } = req.params;
     const sectionData = req.body;
-    
+
     const updated = await SectionModel.update(id, sectionData);
-    
+
     return res.json({
       ok: true,
       msg: "Sección actualizada",
@@ -123,7 +146,7 @@ const deleteSection = async (req, res) => {
   try {
     const { id } = req.params;
     await SectionModel.remove(id);
-    
+
     return res.json({
       ok: true,
       msg: "Sección eliminada"
@@ -146,9 +169,9 @@ const addSchedule = async (req, res) => {
   try {
     const { sectionId } = req.params;
     const scheduleData = req.body;
-    
+
     const newSchedule = await SectionModel.addSchedule(sectionId, scheduleData);
-    
+
     return res.status(201).json({
       ok: true,
       msg: "Horario agregado",
@@ -168,7 +191,7 @@ const removeSchedule = async (req, res) => {
   try {
     const { scheduleId } = req.params;
     await SectionModel.removeSchedule(scheduleId);
-    
+
     return res.json({
       ok: true,
       msg: "Horario eliminado"
@@ -186,7 +209,7 @@ const removeSchedule = async (req, res) => {
 const checkAvailability = async (req, res) => {
   try {
     const { academicYearId, day, startTime, endTime, classroom, excludeSectionId } = req.query;
-    
+
     const result = await SectionModel.checkClassroomAvailability({
       academicYearId,
       day,
@@ -195,7 +218,7 @@ const checkAvailability = async (req, res) => {
       classroom,
       excludeSectionId
     });
-    
+
     return res.json({
       ok: true,
       data: result
@@ -214,42 +237,42 @@ const checkAvailability = async (req, res) => {
 
 
 const getSectionStudents = async (req, res) => {
-    try {
-        const { sectionId } = req.params;
-        
-        // Aquí obtienes los estudiantes de la sección desde la BD
-        const students = await SectionModel.getStudentsBySection(sectionId);
-        
-        return res.json({
-            ok: true,
-            data: students
-        });
-    } catch (error) {
-        return res.status(500).json({
-            ok: false,
-            msg: "Error al obtener estudiantes de la sección"
-        });
-    }
+  try {
+    const { sectionId } = req.params;
+
+    // Aquí obtienes los estudiantes de la sección desde la BD
+    const students = await SectionModel.getStudentsBySection(sectionId);
+
+    return res.json({
+      ok: true,
+      data: students
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al obtener estudiantes de la sección"
+    });
+  }
 };
 
 
 const getEvaluationStructure = async (req, res) => {
-    try {
-        const { sectionId } = req.params;
-        
-        // Aquí obtienes la estructura de evaluaciones
-        const structure = await SectionModel.getEvaluationStructure(sectionId);
-        
-        return res.json({
-            ok: true,
-            data: structure
-        });
-    } catch (error) {
-        return res.status(500).json({
-            ok: false,
-            msg: "Error al obtener estructura de evaluaciones"
-        });
-    }
+  try {
+    const { sectionId } = req.params;
+
+    // Aquí obtienes la estructura de evaluaciones
+    const structure = await SectionModel.getEvaluationStructure(sectionId);
+
+    return res.json({
+      ok: true,
+      data: structure
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      msg: "Error al obtener estructura de evaluaciones"
+    });
+  }
 };
 
 
@@ -267,5 +290,5 @@ export const SectionController = {
   removeSchedule,
   checkAvailability,
   getSectionStudents,
-  getEvaluationStructure 
+  getEvaluationStructure
 };

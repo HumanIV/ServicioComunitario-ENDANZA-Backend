@@ -15,7 +15,9 @@ const findAllSections = async (academicYearId = null) => {
                     SELECT 
                         s."Id_seccion" as id,
                         s."nombre_seccion" as section_name,
-                        'General' as grade_level,
+                        COALESCE(g."nombre_grado", 'General') as grade_level,
+                        g."Id_grado" as grade_id,
+                        g."nombre_grado" as grade_name,
                         s."capacidad" as capacity,
                         s."Id_materia" as subject_id,
                         s."Id_lapso" as period_id,
@@ -65,10 +67,11 @@ const findAllSections = async (academicYearId = null) => {
                         ) as total_hours
                     FROM "Seccion" s
                     LEFT JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
+                    LEFT JOIN "Grado" g ON m."ano_materia" = g."Id_grado"
                     LEFT JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
                     LEFT JOIN "Ano_Academico" a ON s."Id_ano" = a."Id_ano"
                     WHERE s."Id_ano" = $1
-                    ORDER BY s."Id_seccion" DESC
+                    ORDER BY g."nombre_grado", s."Id_seccion" DESC
                 `,
                 values: [academicYearId]
             };
@@ -78,7 +81,9 @@ const findAllSections = async (academicYearId = null) => {
                     SELECT 
                         s."Id_seccion" as id,
                         s."nombre_seccion" as section_name,
-                        'General' as grade_level,
+                        COALESCE(g."nombre_grado", 'General') as grade_level,
+                        g."Id_grado" as grade_id,
+                        g."nombre_grado" as grade_name,
                         s."capacidad" as capacity,
                         s."Id_materia" as subject_id,
                         s."Id_lapso" as period_id,
@@ -128,9 +133,10 @@ const findAllSections = async (academicYearId = null) => {
                         ) as total_hours
                     FROM "Seccion" s
                     LEFT JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
+                    LEFT JOIN "Grado" g ON m."ano_materia" = g."Id_grado"
                     LEFT JOIN "Lapso" l ON s."Id_lapso" = l."Id_lapso"
                     LEFT JOIN "Ano_Academico" a ON s."Id_ano" = a."Id_ano"
-                    ORDER BY s."Id_seccion" DESC
+                    ORDER BY g."nombre_grado", s."Id_seccion" DESC
                 `
             };
         }

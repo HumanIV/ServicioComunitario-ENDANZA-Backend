@@ -13,6 +13,7 @@ import representanteRoutes from './routes/representante.routes.js';
 import gradesRoutes from './routes/grades.routes.js';
 import inscripcionRepresentanteRoutes from './routes/inscripcionRepresentante.routes.js';
 
+import attendanceRoutes from './routes/attendance.routes.js';
 
 // IMPORTAR MIDDLEWARES DE PROTECCIÓN
 import { routeGuard } from "./middlewares/routeGuard.middleware.js";
@@ -119,13 +120,14 @@ app.use('/api', gradesRoutes);
 app.use('/api/inscripciones', inscripcionRepresentanteRoutes);
 
 
+app.use('/api/attendance', attendanceRoutes);
 
 // ============================================
 // MIDDLEWARE PARA RUTAS NO ENCONTRADAS
 // ============================================
 app.use((req, res) => {
   console.warn(`⚠️ Ruta no encontrada: ${req.method} ${req.path}`);
-  
+
   res.status(404).json({
     ok: false,
     msg: "Route not found",
@@ -151,10 +153,10 @@ app.use((req, res) => {
 // ============================================
 app.use((error, req, res, next) => {
   console.error("🔥 Error global:", error.message);
-  
+
   const statusCode = error.status || 500;
   const message = error.message || "Internal server error";
-  
+
   res.status(statusCode).json({
     ok: false,
     msg: message,

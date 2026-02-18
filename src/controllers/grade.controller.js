@@ -10,25 +10,39 @@ import { GradeModel } from "../models/grade.model.js";
  */
 const saveGrades = async (req, res) => {
     try {
-        const { sectionId, grades, academicYearId } = req.body;
-        
+        const { sectionId, grades, academicYearId, lapsoId } = req.body;
+
         if (!sectionId || !grades) {
             return res.status(400).json({
                 ok: false,
                 msg: "Faltan datos requeridos: sectionId y grades"
             });
         }
-        
-        const results = await GradeModel.saveGrades({ sectionId, grades, academicYearId });
-        
-        console.log(`📝 NOTAS GUARDADAS: Usuario ${req.user.userId} guardó notas en sección ${sectionId}`);
-        
+
+        if (!lapsoId) {
+            return res.status(400).json({
+                ok: false,
+                msg: "Faltan datos requeridos: lapsoId"
+            });
+        }
+
+        // Determinar si el usuario es admin (Id_rol = 1)
+        const isAdmin = req.user && req.user.Id_rol === 1;
+
+        const results = await GradeModel.saveGrades({ sectionId, grades, academicYearId, isAdmin, lapsoId });
+
+        const estado = isAdmin ? 'FORMALIZADAS' : 'PENDIENTES DE APROBACIÓN';
+        console.log(`📝 NOTAS ${estado}: Usuario ${req.user.userId} guardó notas en sección ${sectionId}`);
+
         return res.json({
             ok: true,
-            msg: "Notas guardadas correctamente",
-            data: results
+            msg: isAdmin
+                ? "Notas guardadas y formalizadas correctamente"
+                : "Notas guardadas correctamente. Pendientes de aprobación por administración.",
+            data: results,
+            pendiente: !isAdmin
         });
-        
+
     } catch (error) {
         console.error("❌ Error en saveGrades:", error);
         return res.status(500).json({
@@ -45,14 +59,15 @@ const saveGrades = async (req, res) => {
 const getSectionGrades = async (req, res) => {
     try {
         const { sectionId } = req.params;
-        
-        const grades = await GradeModel.getGradesBySection(sectionId);
-        
+        const { lapsoId } = req.query;
+
+        const grades = await GradeModel.getGradesBySection(sectionId, lapsoId);
+
         return res.json({
             ok: true,
             data: grades
         });
-        
+
     } catch (error) {
         console.error("❌ Error en getSectionGrades:", error);
         return res.status(500).json({
@@ -69,14 +84,14 @@ const getSectionGrades = async (req, res) => {
 const getSectionStudents = async (req, res) => {
     try {
         const { sectionId } = req.params;
-        
+
         const students = await GradeModel.getStudentsBySection(sectionId);
-        
+
         return res.json({
             ok: true,
             data: students
         });
-        
+
     } catch (error) {
         console.error("❌ Error en getSectionStudents:", error);
         return res.status(500).json({
@@ -93,14 +108,15 @@ const getSectionStudents = async (req, res) => {
 const getEvaluationStructure = async (req, res) => {
     try {
         const { sectionId } = req.params;
-        
-        const structure = await GradeModel.getEvaluationStructure(sectionId);
-        
+        const { lapsoId } = req.query;
+
+        const structure = await GradeModel.getEvaluationStructure(sectionId, lapsoId);
+
         return res.json({
             ok: true,
             data: structure
         });
-        
+
     } catch (error) {
         console.error("❌ Error en getEvaluationStructure:", error);
         return res.status(500).json({
@@ -117,14 +133,14 @@ const getEvaluationStructure = async (req, res) => {
 const getStudentGrades = async (req, res) => {
     try {
         const { studentId } = req.params;
-        
+
         const grades = await GradeModel.getStudentGrades(studentId);
-        
+
         return res.json({
             ok: true,
             data: grades
         });
-        
+
     } catch (error) {
         console.error("❌ Error en getStudentGrades:", error);
         return res.status(500).json({
@@ -141,11 +157,11 @@ const getStudentGrades = async (req, res) => {
 const exportSectionGrades = async (req, res) => {
     try {
         const { sectionId } = req.params;
-        
+
         const grades = await GradeModel.getGradesBySection(sectionId);
         const students = await GradeModel.getStudentsBySection(sectionId);
         const structure = await GradeModel.getEvaluationStructure(sectionId);
-        
+
         // Formato para exportación
         const exportData = {
             sectionId,
@@ -156,12 +172,12 @@ const exportSectionGrades = async (req, res) => {
             })),
             evaluationStructure: structure
         };
-        
+
         return res.json({
             ok: true,
             data: exportData
         });
-        
+
     } catch (error) {
         console.error("❌ Error en exportSectionGrades:", error);
         return res.status(500).json({

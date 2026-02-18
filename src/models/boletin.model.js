@@ -54,9 +54,9 @@ const findByYearId = async (academicYearId) => {
   }
 };
 
-const generarBoletin = async (studentId, academicYearId) => {
+const generarBoletin = async (studentId, academicYearId, gradeId) => {
   try {
-    // VALIDACIÓN: Verificar que el estudiante tenga TODAS sus notas cargadas
+    // VALIDACIÓN: Verificar que el estudiante tenga TODAS sus notas cargadas (filtrando por grado si aplica)
     const validacionQuery = {
       text: `
         -- Obtener todas las estructuras de evaluación de las secciones del estudiante
@@ -65,8 +65,11 @@ const generarBoletin = async (studentId, academicYearId) => {
           FROM "Estudiante_Seccion" es
           JOIN "Seccion" s ON es."Id_seccion" = s."Id_seccion"
           JOIN "Estructura_Evaluacion" ee ON ee."Id_seccion" = s."Id_seccion"
+          LEFT JOIN "Materia" m ON s."Id_materia" = m."Id_materia"
+          LEFT JOIN "Grado" g ON m."ano_materia" = g."Id_grado"
           WHERE es."Id_estudiante" = $1
             AND s."Id_ano" = $2
+            AND ($3::int IS NULL OR g."Id_grado" = $3::int)
         ),
         -- Contar cuántas notas tiene el estudiante
         notas_estudiante AS (
@@ -85,7 +88,7 @@ const generarBoletin = async (studentId, academicYearId) => {
             ELSE false
           END as tiene_todas_notas
       `,
-      values: [studentId, academicYearId]
+      values: [studentId, academicYearId, gradeId]
     };
 
     const validacion = await db.query(validacionQuery.text, validacionQuery.values);
@@ -94,7 +97,7 @@ const generarBoletin = async (studentId, academicYearId) => {
     // Si no tiene todas las notas, lanzar error
     if (!tiene_todas_notas) {
       throw new Error(
-        `El estudiante no tiene todas sus notas cargadas. ` +
+        `El estudiante no tiene todas sus notas cargadas${gradeId ? ' para este grado' : ''}. ` +
         `Notas cargadas: ${notas_cargadas}/${total_evaluaciones}. ` +
         `Complete todas las evaluaciones antes de generar el boletín.`
       );
@@ -109,7 +112,7 @@ const generarBoletin = async (studentId, academicYearId) => {
                 DO UPDATE SET "is_available" = true, "updated_at" = CURRENT_TIMESTAMP
                 RETURNING "id"
             `,
-      values: [studentId, academicYearId]
+      values: [studentId, academicYearId] // No guardamos gradeId en la tabla por ahora, es validación lógica
     };
     const { rows } = await db.query(query.text, query.values);
     return rows[0];
