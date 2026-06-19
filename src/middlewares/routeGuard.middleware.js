@@ -7,7 +7,6 @@
 export const routeGuard = () => {
   return async (req, res, next) => {
     try {
-      // Rutas públicas que no requieren verificación
       const publicPaths = [
         '/',
         '/api/health',
@@ -19,6 +18,8 @@ export const routeGuard = () => {
         '/api/users/reset-password',
         '/api/users/security-question/',
         '/api/users/recover-password-security',
+        '/api/representantes/search',
+        '/api/representantes/preinscripcion',
       ];
 
       const currentPath = req.path;

@@ -17,7 +17,7 @@ const findPendientesByYearId = async (academicYearId) => {
           g."nombre_grado" || ' ' || s."nombre_seccion" as seccion,
           COUNT(DISTINCT cn."Id_estudiante") as estudiantes,
           COUNT(cn."Id_nota") as notas_count,
-          MAX(cn."actualizado_en") as fecha,
+          CURRENT_TIMESTAMP as fecha,
           'pendiente' as estado
         FROM "Carga_Nota" cn
         JOIN "Estructura_Evaluacion" ee ON cn."Id_estructura_evaluacion" = ee."Id_estructura_evaluacion"
@@ -315,7 +315,7 @@ const saveGradesBatch = async (sectionId, gradesData) => {
 
             if (check.rows.length > 0) {
               await db.query(
-                `UPDATE "Carga_Nota" SET "puntaje" = $1, "esta_formalizada" = false, "actualizado_en" = CURRENT_TIMESTAMP WHERE "Id_nota" = $2`,
+                `UPDATE "Carga_Nota" SET "puntaje" = $1, "esta_formalizada" = false WHERE "Id_nota" = $2`,
                 [val, check.rows[0].Id_nota]
               );
             } else {

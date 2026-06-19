@@ -12,12 +12,9 @@ const router = express.Router();
 // ============================================
 
 
-// Preinscripción (solo admin)
+// Preinscripción (público para nuevos registros)
 router.post(
   "/preinscripcion",
-  verifyToken,
-  verifyAdmin,
-  autoVerifyRole,
   RepresentanteController.createFromPreinscripcion
 );
 
@@ -29,11 +26,9 @@ router.get(
   RepresentanteController.listRepresentantes
 );
 
-// Buscar representantes por término
+// Buscar representantes por término (público para autocompletado en preinscripción)
 router.get(
   "/search",
-  verifyToken,
-  autoVerifyRole,
   RepresentanteController.searchRepresentantes
 );
 
