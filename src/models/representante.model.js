@@ -176,7 +176,8 @@ export const RepresentanteModel = {
             u."nombre" as first_name,
             u."apellido" as last_name,
             u."telefono" as phone,
-            u."correo" as email
+            u."correo" as email,
+            r."es_familiar"
           FROM "Usuario" u
           INNER JOIN "Representante" r ON u."Id_usuario" = r."Id_usuario"
           WHERE u."Id_rol" = 4
